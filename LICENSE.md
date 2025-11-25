@@ -1,0 +1,40 @@
+Tifil123 Chatbot — Non-Commercial License 1.0
+Copyright (c) [2025] tifil123
+
+Bu yazılım ("chatbot"), yalnızca kişisel, eğitimsel ve ticari olmayan amaçlarla kullanılmak üzere lisanslanmıştır.
+Aşağıdaki kullanım türleri KESİNLİKLE YASAKTIR:
+ - Yazılımın veya türevlerinin satılması,
+ - Yazılımın ticari bir ürün/servis/SaaS içinde kullanılması,
+ - Yazılımın ücretli erişim/abonelik/rekabet amaçlı kullanımı.
+
+İzinler:
+ - Kaynağı inceleme, öğrenme, çalıştırma ve kişisel/eğitsel amaçlarla değiştirme serbesttir.
+ - Değiştirilmiş sürümler yalnızca ücretsiz ve ticari olmayan biçimde dağıtılabilir.
+ - Bu lisansın bir kopyası dağıtılan her kopya ile birlikte verilmelidir.
+
+Sorumluluk Reddi:
+Yazılım "olduğu gibi" sağlanır. Yazar hiçbir garantiyi kabul etmez ve yazılımın kullanımından doğacak zararlardan sorumlu tutulamaz.
+
+Ticari kullanım için yazılı izin almak istersen iletişim: [(https://github.com/tifil123)]
+
+Tifil123 Chatbot — Non-Commercial License 1.0
+Copyright (c) [2025] tifil123
+
+This software (“chatbot”) is licensed solely for personal, educational, and non-commercial purposes.
+The following types of use are STRICTLY PROHIBITED:
+ - Selling the software or its derivatives,
+ - Using the software in a commercial product/service/SaaS,
+ - Using the software for paid access/subscription/competitive purposes.
+
+Permissions:
+ - You are free to examine, study, run, and modify the source code for personal/educational purposes.
+ - Modified versions may only be distributed free of charge and for non-commercial purposes.
+ - A copy of this license must be included with every distributed copy.
+
+Disclaimer:
+The software is provided “as is.” The author makes no warranties and cannot be held liable for any damages arising from the use of the software.
+
+To request written permission for commercial use, contact: [(https://github.com/tifil123)]
+
+
+Translated with DeepL.com (free version)
