@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Admin Panel</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-database-compat.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#0a0a0f;color:#e2e8f0}
+.app{display:flex;height:100vh}
+.sidebar{width:280px;background:#12121a;border-right:1px solid #1e1e2e;display:flex;flex-direction:column}
+.chat-area{width:400px;background:#16161f;border-right:1px solid #1e1e2e;display:flex;flex-direction:column}
+.main{flex:1;display:flex;flex-direction:column}
+.logo{padding:20px;background:linear-gradient(135deg,#667eea,#764ba2)}
+.logo h1{font-size:1.2rem}
+.logo p{font-size:0.75rem;opacity:0.8;margin-top:4px}
+.stats{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.stat{background:rgba(255,255,255,0.15);padding:5px 10px;border-radius:6px;font-size:0.7rem}
+.user-list{flex:1;overflow-y:auto}
+.user-item{padding:12px 15px;cursor:pointer;border-bottom:1px solid #1e1e2e;position:relative;display:flex;justify-content:space-between;align-items:center}
+.user-item:hover{background:#1e1e2e}
+.user-item.active{background:#667eea}
+.user-item.needs-attention{border-left:4px solid #ef4444;background:#1e1b4b}
+.user-item.needs-attention .name::after{content:' ⚠️';color:#ef4444;font-size:1rem;margin-left:5px}
+.user-info{flex:1}
+.context-menu{position:fixed;background:#1e1e2e;border:1px solid #2a2a3a;border-radius:8px;padding:8px 0;min-width:150px;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:1000;display:none}
+.context-menu.show{display:block}
+.context-menu-item{padding:10px 16px;color:#e2e8f0;cursor:pointer;font-size:0.85rem;transition:background 0.2s;display:flex;align-items:center;gap:8px}
+.context-menu-item:hover{background:#2a2a3a}
+.context-menu-item.danger{color:#ef4444}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.user-item .name{font-weight:600;font-size:0.85rem;margin-bottom:4px}
+.user-item .preview{font-size:0.75rem;color:#94a3b8}
+.status-bar{padding:10px 15px;background:#0a0a0f;font-size:0.75rem}
+.dot{width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block;margin-right:8px}
+.dot.on{background:#10b981}
+.chat-header{padding:15px;background:#12121a;border-bottom:1px solid #1e1e2e;display:flex;justify-content:space-between;align-items:center}
+.chat-header h2{font-size:1rem}
+.mode-badge{padding:4px 12px;border-radius:15px;font-size:0.75rem;font-weight:bold;margin-left:8px}
+.mode-auto{background:#10b981;color:#fff}
+.mode-manual{background:#f59e0b;color:#000}
+.messages{flex:1;overflow-y:auto;padding:15px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:80%;padding:10px 14px;border-radius:12px;font-size:0.85rem;line-height:1.5;white-space:pre-line}
+.msg.user{align-self:flex-start;background:#1e1e2e;color:#e2e8f0;border-bottom-left-radius:4px}
+.msg.bot{align-self:flex-end;background:#667eea;color:#fff;border-bottom-right-radius:4px}
+.msg.bot.learned{border-left:3px solid #10b981}
+.msg .time{font-size:0.65rem;color:#94a3b8;margin-top:5px}
+.msg.user .time{color:rgba(255,255,255,0.6)}
+.reply-box{padding:12px;background:#12121a;border-top:1px solid #1e1e2e}
+.reply-box input{width:100%;padding:12px 15px;border:1px solid #2a2a3a;border-radius:25px;background:#0a0a0f;color:#e2e8f0;font-size:0.9rem;margin-bottom:8px}
+.reply-box input:focus{outline:none;border-color:#667eea}
+.reply-actions{display:flex;gap:8px;flex-wrap:wrap}
+.tabs{display:flex;background:#0a0a0f}
+.tab{flex:1;padding:15px;text-align:center;cursor:pointer;font-size:0.85rem;font-weight:600;border-bottom:3px solid transparent;position:relative}
+.tab:hover{background:#12121a}
+.tab.active{border-bottom-color:#667eea;color:#667eea}
+.tab .notif{position:absolute;top:8px;right:8px;width:20px;height:20px;background:#ef4444;border-radius:50%;color:#fff;font-size:0.7rem;display:none;align-items:center;justify-content:center;font-weight:bold}
+.tab .notif.show{display:flex}
+.tab-content{display:none;flex:1;overflow-y:auto;padding:20px}
+.tab-content.active{display:block}
+.card{background:#12121a;border-radius:12px;padding:20px;margin-bottom:15px;border:1px solid #1e1e2e}
+.card h3{font-size:0.95rem;margin-bottom:15px;color:#667eea}
+.btn{padding:10px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.8rem;transition:all 0.15s}
+.btn:hover{opacity:0.9}
+.btn-primary{background:#667eea;color:#fff}
+.btn-success{background:#10b981;color:#fff}
+.btn-danger{background:#ef4444;color:#fff}
+.btn-warning{background:#f59e0b;color:#000}
+.btn-ghost{background:transparent;color:#94a3b8;border:1px solid #2a2a3a}
+.config-input{width:100%;padding:12px;border:1px solid #2a2a3a;border-radius:8px;background:#0a0a0f;color:#e2e8f0;font-size:0.85rem;margin-bottom:10px}
+.config-input:focus{outline:none;border-color:#667eea}
+.pending-item{background:#1e1b4b;border:2px solid #ef4444;border-radius:12px;padding:15px;margin-bottom:15px;animation:attention 3s infinite}
+@keyframes attention{0%,100%{border-color:#ef4444}50%{border-color:#f59e0b}}
+.pending-item .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.pending-item .question{font-size:1rem;color:#fff;font-weight:600;margin-bottom:10px;padding:10px;background:#0a0a0f;border-radius:8px}
+.pending-item .context{font-size:0.75rem;color:#94a3b8;margin-bottom:12px;padding:10px;background:#0a0a0f;border-radius:6px;line-height:1.6}
+.pending-item .meta{font-size:0.7rem;color:#64748b;margin-bottom:12px}
+.pending-actions{display:flex;gap:8px;flex-wrap:wrap}
+.learned-item{background:#0a0a0f;padding:15px;border-radius:10px;margin-bottom:12px;border-left:4px solid #10b981}
+.learned-item .question{color:#10b981;font-weight:600;font-size:0.9rem;margin-bottom:8px}
+.learned-item .response{color:#94a3b8;font-size:0.85rem;margin-bottom:8px;line-height:1.6}
+.learned-item .meta{font-size:0.7rem;color:#64748b}
+.learned-actions{display:flex;gap:8px;margin-top:10px}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);align-items:center;justify-content:center;z-index:1000}
+.modal.show{display:flex}
+.modal-content{background:#12121a;padding:30px;border-radius:16px;max-width:550px;width:90%;border:1px solid #1e1e2e}
+.modal-content h3{margin-bottom:20px;color:#fff;font-size:1.2rem}
+.modal-highlight{background:#1e1b4b;padding:15px;border-radius:10px;margin-bottom:20px;border-left:4px solid #667eea}
+.modal-highlight .label{font-size:0.75rem;color:#94a3b8;margin-bottom:5px}
+.modal-highlight .value{color:#fff;font-weight:600}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.toast{position:fixed;bottom:20px;right:20px;padding:15px 25px;background:#10b981;color:#fff;border-radius:10px;font-weight:600;transform:translateY(100px);opacity:0;transition:all 0.3s;z-index:2000}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.error{background:#ef4444}
+.toast.success{background:#10b981}
+.toast.warning{background:#f59e0b;color:#000}
+.loading-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:40px;color:#64748b}
+.empty .icon{font-size:3rem;margin-bottom:15px;opacity:0.5}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+<div class="logo">
+<h1>🤖 AI Admin</h1>
+<p>Öğrenen Bot Eğitim Paneli</p>
+<div class="stats">
+<div class="stat"><b id="userCount">0</b> Kullanıcı</div>
+<div class="stat"><b id="pendingCount">0</b> Bekleyen</div>
+<div class="stat"><b id="learnedCount">0</b> Öğrenilmiş</div>
+</div>
+</div>
+<div class="user-list" id="userList">
+<div class="empty"><div class="icon">👥</div>Bağlantı bekleniyor</div>
+</div>
+<div class="status-bar">
+<span class="dot" id="statusDot"></span>
+<span id="statusText">Bağlantı bekleniyor</span>
+</div>
+</aside>
+
+<div class="chat-area">
+<div class="chat-header">
+<div>
+<h2 id="chatTitle">💬 Mesajlar</h2>
+<span class="mode-badge mode-auto" id="modeBadge">🤖 Otomatik</span>
+</div>
+<button class="btn btn-ghost refresh-btn" style="padding:8px 12px;font-size:0.75rem" onclick="refreshChat()" title="Mesajları yenile">🔄</button>
+</div>
+<div class="messages" id="messageList">
+<div class="empty"><div class="icon">💬</div>Kullanıcı seçin</div>
+</div>
+<div class="reply-box">
+<textarea id="replyInput" placeholder="Yanıt yazın... (Shift+Enter: Yeni satır, Enter: Gönder)" style="width:100%;padding:12px 15px;border:1px solid #2a2a3a;border-radius:12px;background:#0a0a0f;color:#e2e8f0;font-size:0.9rem;margin-bottom:8px;min-height:60px;max-height:150px;resize:none;font-family:inherit;overflow:hidden" oninput="this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 150) + 'px'"></textarea>
+<div class="reply-actions">
+  <button class="btn btn-warning" onclick="takeover()">👤 Devral</button>
+  <button class="btn btn-danger" onclick="releaseControl()">🤖 Bota devret</button>
+  <button class="btn btn-success" onclick="sendManualReply()" style="margin-left:auto">📤 Gönder</button>
+</div>
+</div>
+</div>
+
+<main class="main">
+<div class="tabs">
+<div class="tab active" onclick="switchTab('config')">⚙️ Ayarlar</div>
+<div class="tab" onclick="switchTab('pending')">
+❗ Bekleyen Sorular
+<span class="notif" id="pendingNotif">0</span>
+</div>
+<div class="tab" onclick="switchTab('learned')">🧠 Öğrenilenler</div>
+</div>
+
+<div class="tab-content active" id="tab-config">
+<div class="card">
+<h3>🔥 Firebase Bağlantısı</h3>
+<div style="padding:15px;background:#0a0a0f;border-radius:8px;margin-bottom:10px">
+<div style="font-size:0.8rem;color:#94a3b8;margin-bottom:5px">Firebase Database URL:</div>
+<div style="font-size:0.75rem;color:#667eea;word-break:break-all">https://chatbotdb-be1f7-default-rtdb.europe-west1.firebasedatabase.app</div>
+</div>
+<div style="font-size:0.8rem;color:#10b981;text-align:center;padding:10px">
+✅ Firebase'e otomatik bağlanıldı
+</div>
+</div>
+
+<div class="card">
+<h3>📊 Sistem Durumu</h3>
+<div style="font-size:0.85rem;color:#94a3b8;line-height:2">
+<b>Bağlantı:</b> <span id="connStatus">Bağlı değil</span><br>
+<b>Aktif Kullanıcı:</b> <span id="activeUsers">0</span><br>
+<b>Bekleyen Soru:</b> <span id="pendingQCount">0</span><br>
+<b>Öğrenilmiş Yanıt:</b> <span id="learnedRCount">0</span>
+</div>
+</div>
+
+<div class="card">
+<h3>💡 Nasıl Çalışır?</h3>
+<ul style="font-size:0.85rem;color:#94a3b8;line-height:2;list-style:none;padding:0">
+<li>1️⃣ Kullanıcı soru sorar</li>
+<li>2️⃣ Bot cevap bilmiyorsa sessiz kalır</li>
+<li>3️⃣ "Bekleyen Sorular" sekmesinde görürsün</li>
+<li>4️⃣ "Devir Al" ile manuel yanıt verirsin</li>
+<li>5️⃣ Bot soruyu ve yanıtı öğrenir</li>
+<li>6️⃣ Aynı soru tekrar sorulunca otomatik cevap verir</li>
+</ul>
+</div>
+</div>
+
+<div class="tab-content" id="tab-pending">
+<div id="pendingList">
+<div class="empty"><div class="icon">✅</div>Bekleyen soru yok!</div>
+</div>
+</div>
+
+<div class="tab-content" id="tab-learned">
+  <div style="margin-bottom:20px;">
+    <input type="text" id="searchLearned" placeholder="🔍 Sorularda ara (sadece sorular aranır)..." style="width:100%;padding:12px 15px;border:1px solid #2a2a3a;border-radius:25px;background:#0a0a0f;color:#e2e8f0;font-size:0.9rem;margin-bottom:8px" onkeyup="searchLearnedResponses()">
+  </div>
+  <div id="learnedList">
+    <div class="empty"><div class="icon">🧠</div>Henüz öğrenilmiş yanıt yok</div>
+  </div>
+</div>
+</main>
+</div>
+
+<div class="modal" id="learnModal">
+<div class="modal-content">
+<h3>🧠 Bot Bu Yanıtı Öğrensin mi?</h3>
+<div class="modal-highlight">
+<div class="label">Kullanıcı Sorusu:</div>
+<div class="value" id="learnQuestion"></div>
+</div>
+<div class="modal-highlight" style="border-left-color:#10b981">
+<div class="label">Senin Yanıtın:</div>
+<div class="value" id="learnResponse"></div>
+</div>
+<p style="font-size:0.85rem;color:#94a3b8;line-height:1.6">
+Bot bu soru-cevap eşleştirmesini öğrenecek. Aynı veya benzer soru geldiğinde otomatik olarak bu yanıtı verecek.
+</p>
+<div class="modal-footer">
+<button class="btn btn-ghost" onclick="closeModal('learnModal')">❌ Hayır, Öğretme</button>
+<button class="btn btn-success" onclick="confirmLearn()">✅ Evet, Öğret</button>
+</div>
+</div>
+</div>
+
+
+<div class="modal" id="teachModal">
+<div class="modal-content">
+<h3>🧠 Yanıt Öğret</h3>
+<div class="modal-highlight">
+<div class="label">Soru:</div>
+<div class="value" id="teachQuestion"></div>
+</div>
+<textarea id="teachResponse" placeholder="Bot bu soruya ne cevap vermeli?" style="width:100%;padding:12px;border:1px solid #2a2a3a;border-radius:8px;background:#0a0a0f;color:#e2e8f0;font-size:0.85rem;margin-bottom:15px;min-height:80px;resize:none;font-family:inherit;overflow:hidden" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"></textarea>
+<p style="font-size:0.85rem;color:#94a3b8;line-height:1.6">
+Bu yanıtı öğrettiğinizde, bot gelecekte aynı soruyu sorduğunda otomatik olarak bu cevabı verecektir.
+</p>
+<div class="modal-footer">
+<button class="btn btn-ghost" onclick="closeModal('teachModal')">❌ İptal</button>
+<button class="btn btn-success" onclick="confirmTeach()">✅ Öğret</button>
+</div>
+</div>
+</div>
+
+<div class="modal" id="editNameModal">
+<div class="modal-content">
+<h3>✏️ Sohbet Bilgilerini Düzenle</h3>
+<div style="margin-bottom:15px">
+<label style="display:block;font-size:0.85rem;color:#94a3b8;margin-bottom:5px">Kullanıcı Adı:</label>
+<input type="text" id="newUserName" placeholder="Kullanıcı adı girin..." style="width:100%;padding:12px;border:1px solid #2a2a3a;border-radius:8px;background:#0a0a0f;color:#e2e8f0;font-size:0.9rem">
+</div>
+<div style="margin-bottom:20px">
+<label style="display:block;font-size:0.85rem;color:#94a3b8;margin-bottom:5px">Telefon Numarası:</label>
+<input type="tel" id="newUserPhone" placeholder="Telefon numarası girin..." style="width:100%;padding:12px;border:1px solid #2a2a3a;border-radius:8px;background:#0a0a0f;color:#e2e8f0;font-size:0.9rem" oninput="this.value = this.value.replace(/[^0-9+\s]/g, '')">
+</div>
+<div class="modal-footer">
+<button class="btn btn-ghost" onclick="closeModal('editNameModal')">❌ İptal</button>
+<button class="btn btn-success" onclick="saveUserName()">✅ Kaydet</button>
+</div>
+</div>
+</div>
+
+<div class="modal" id="addResponseModal">
+<div class="modal-content">
+<h3>➕ Alternatif Yanıt Ekle</h3>
+<div class="modal-highlight">
+<div class="label">Soru:</div>
+<div class="value" id="alternativeQuestion"></div>
+</div>
+<textarea id="alternativeResponse" placeholder="Yeni alternatif yanıtı girin..." style="width:100%;padding:12px;border:1px solid #2a2a3a;border-radius:8px;background:#0a0a0f;color:#e2e8f0;font-size:0.85rem;margin-bottom:15px;min-height:80px;resize:none;font-family:inherit;overflow:hidden" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"></textarea>
+<p style="font-size:0.85rem;color:#94a3b8;line-height:1.6">
+Bu yanıtı eklediğinizde, bot aynı soruyu sorduğunda mevcut yanıtlardan birini rastgele seçecektir.
+</p>
+<div class="modal-footer">
+<button class="btn btn-ghost" onclick="closeModal('addResponseModal')">❌ İptal</button>
+<button class="btn btn-success" onclick="confirmAlternativeResponse()">✅ Ekle</button>
+</div>
+</div>
+</div>
+
+<div class="context-menu" id="contextMenu">
+  <div class="context-menu-item" onclick="editFromContextMenu()">
+    <span>✏️</span> İsmi Düzenle
+  </div>
+</div>
+
+<div class="modal" id="editLearnedModal">
+<div class="modal-content">
+<h3>✏️ Öğrenilmiş Yanıtı Düzenle</h3>
+<div class="modal-highlight">
+<div class="label">Soru:</div>
+<div class="value" id="editLearnedQuestion"></div>
+</div>
+<textarea id="editLearnedResponse" placeholder="Yanıtı düzenleyin..." style="width:100%;padding:12px;border:1px solid #2a2a3a;border-radius:8px;background:#0a0a0f;color:#e2e8f0;font-size:0.85rem;margin-bottom:15px;min-height:80px;resize:none;font-family:inherit;overflow:hidden" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"></textarea>
+<p style="font-size:0.85rem;color:#94a3b8;line-height:1.6">
+Bu yanıtı düzenlediğinizde, bot gelecekte aynı soruyu sorduğunda güncellenmiş bu cevabı verecektir.
+</p>
+<div class="modal-footer">
+<button class="btn btn-ghost" onclick="closeModal('editLearnedModal')">❌ İptal</button>
+<button class="btn btn-success" onclick="saveLearnedEdit()">✅ Kaydet</button>
+</div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let db=null;
+let sessions={};
+let pendingQuestions={};
+let learnedResponses={};
+let selectedUser=null;
+let lastManualReply={};
+
+window.onload=()=>{
+  connectFirebase();
+};
+
+function connectFirebase(){
+  try{
+    const firebaseUrl = 'https://chatbotdb-be1f7-default-rtdb.europe-west1.firebasedatabase.app';
+    if(!firebase.apps.length)firebase.initializeApp({databaseURL:firebaseUrl});
+    db=firebase.database();
+    
+    // Sessions
+    db.ref('sessions').on('value',s=>{
+      sessions={};
+      s.forEach(c=>{sessions[c.key]=c.val()});
+      renderUsers();
+      updateStats();
+      if(selectedUser)showMessages(selectedUser);
+    });
+    
+    // Pending questions
+    db.ref('pending_questions').on('value',s=>{
+      pendingQuestions={};
+      s.forEach(c=>{pendingQuestions[c.key]=c.val()});
+      const count=Object.keys(pendingQuestions).length;
+      document.getElementById('pendingCount').textContent=count;
+      document.getElementById('pendingQCount').textContent=count;
+      document.getElementById('pendingNotif').textContent=count;
+      document.getElementById('pendingNotif').classList.toggle('show',count>0);
+      renderPending();
+    });
+    
+    // Learned responses
+    db.ref('learned_responses').on('value',s=>{
+      learnedResponses={};
+      s.forEach(c=>{learnedResponses[c.key]=c.val()});
+      const count=Object.keys(learnedResponses).length;
+      document.getElementById('learnedCount').textContent=count;
+      document.getElementById('learnedRCount').textContent=count;
+      const searchInput = document.getElementById('searchLearned');
+      const searchTerm = searchInput ? searchInput.value : '';
+      renderLearned(searchTerm);
+    });
+    
+    document.getElementById('statusDot').classList.add('on');
+    document.getElementById('statusText').textContent=' Bağlı';
+    document.getElementById('connStatus').textContent=' Bağlı';
+    toast('Firebase bağlandı!','success');
+  }catch(e){
+    toast('Firebase bağlantı hatası: '+e.message,'error');
+  }
+}
+
+function updateStats(){
+  document.getElementById('userCount').textContent=Object.keys(sessions).length;
+  document.getElementById('activeUsers').textContent=Object.keys(sessions).length;
+}
+
+function renderUsers(){
+  const list=Object.entries(sessions).map(([id,data])=>{
+    const msgs=Object.values(data.messages||{});
+    const last=msgs.length?Math.max(...msgs.map(m=>m.timestamp)):0;
+    const lastMsg=msgs.sort((a,b)=>b.timestamp-a.timestamp)[0];
+    const needsAttention=data.info?.needsAttention||false;
+    return {id,last,lastMsg,needsAttention};
+  }).sort((a,b)=>b.last-a.last);
+  
+  const el=document.getElementById('userList');
+  if(!list.length){
+    el.innerHTML='<div class="empty"><div class="icon">👥</div>Henüz konuşma yok</div>';
+    return;
+  }
+  
+  el.innerHTML=list.map((u, index)=>`
+    <div class="user-item ${u.id===selectedUser?'active':''} ${u.needsAttention?'needs-attention':''}" onclick="selectUser('${u.id}')" oncontextmenu="showContextMenu(event, '${u.id}', ${index})">
+      <div class="user-info">
+        <div class="name" id="userName-${u.id}">🐰 ${sessions[u.id]?.info?.customName || 'isimsiz'}</div>
+        <div class="phone" id="userPhone-${u.id}" style="font-size:0.75rem;color:#64748b;margin-bottom:2px;cursor:text;user-select:text">${sessions[u.id]?.info?.phoneNumber || 'telefon yok'}</div>
+        <div class="preview">${u.lastMsg?u.lastMsg.message.slice(0,30)+'...':'Yeni oturum'}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectUser(id){
+  selectedUser=id;
+  renderUsers();
+  showMessages(id);
+  updateModeDisplay(id);
+}
+
+function showMessages(id){
+  const data=sessions[id];
+  if(!data)return;
+  
+  
+  const userName = sessions[id]?.info?.customName || 'isimsiz';
+  const userPhone = sessions[id]?.info?.phoneNumber || '';
+  document.getElementById('chatTitle').innerHTML = `🐰 ${userName}${userPhone ? '<br><span style="font-size:0.8rem;color:#64748b;cursor:text;user-select:text">' + userPhone + '</span>' : ''}`;
+  const msgs=Object.entries(data.messages||{}).map(([k,v])=>({...v,id:k})).sort((a,b)=>a.timestamp-b.timestamp);
+  const el=document.getElementById('messageList');
+  
+  if(!msgs.length){
+    el.innerHTML='<div class="empty"><div class="icon">💬</div>Henüz mesaj yok</div>';
+    return;
+  }
+  
+  el.innerHTML=msgs.map(m=>`
+    <div class="msg ${m.sender} ${m.learned?'learned':''}">
+      ${m.message.replace(/\n/g,'<br>')}
+      <div class="time">${new Date(m.timestamp).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}${m.learned?' 🧠':''}${m.fromAdmin?' 👤':''}</div>
+    </div>
+  `).join('');
+  el.scrollTop=el.scrollHeight;
+  
+  msgs.filter(m=>m.sender==='user'&&!m.seen).forEach(m=>{
+    db.ref('sessions/'+id+'/messages/'+m.id+'/seen').set(true);
+  });
+}
+
+function updateModeDisplay(id){
+  const mode=sessions[id]?.control?.mode||'auto';
+  const badge=document.getElementById('modeBadge');
+  if(mode==='manual'){
+    badge.className='mode-badge mode-manual';
+    badge.textContent='👤 Manuel';
+  }else{
+    badge.className='mode-badge mode-auto';
+    badge.textContent='🤖 Otomatik';
+  }
+}
+
+function refreshChat(){
+  const btn = document.querySelector('.refresh-btn');
+  btn.style.animation = 'spin 1s linear infinite';
+  
+  // Seçili kullanıcı varsa mesajları yenile
+  if(selectedUser && db){
+    // Firebase'den güncel verileri çek
+    db.ref('sessions/' + selectedUser).once('value', (snapshot) => {
+      const data = snapshot.val();
+      if(data){
+        // Sessions objesini güncelle
+        sessions[selectedUser] = data;
+        // Mesajları göster
+        showMessages(selectedUser);
+        // Kullanıcı listesini güncelle (son mesaj bilgisi için)
+        renderUsers();
+        toast('Mesajlar yenilendi!', 'success');
+      }
+    }).catch((error) => {
+      console.error('Mesajlar yenilenirken hata:', error);
+      toast('Mesajlar yenilenirken hata oluştu: ' + error.message, 'error');
+    });
+  } else {
+    // Seçili kullanıcı yoksa sadece mevcut mesajları göster
+    if(selectedUser) showMessages(selectedUser);
+  }
+  
+  // 1 saniye sonra animasyonu durdur
+  setTimeout(() => {
+    btn.style.animation = '';
+  }, 1000);
+}
+
+function takeover(){
+  if(!selectedUser||!db){
+    showModal('⚠️ Kullanıcı Seçilmedi', 'Manuel kontrol almak için önce sol taraftan bir kullanıcı seçmelisiniz.', 'Tamam');
+    return;
+  }
+  db.ref('sessions/'+selectedUser+'/control/mode').set('manual');
+  toast('Manuel kontrolü aldınız!','success');
+}
+
+function releaseControl(){
+  if(!selectedUser||!db)return;
+  db.ref('sessions/'+selectedUser+'/control/mode').set('auto');
+  toast('Bota geri verildi!','success');
+}
+
+function sendManualReply(){
+  const input=document.getElementById('replyInput');
+  const text=input.value.trim();
+  
+  if(!text||!selectedUser||!db){
+    const message = !selectedUser ? 'Lütfen önce sol taraftan bir kullanıcı seçin.' :
+                    !text ? 'Lütfen bir mesaj yazın.' : 'Firebase bağlantısı yok.';
+    showModal('⚠️ Eksik Bilgi', message, 'Tamam');
+    return;
+  }
+  
+  db.ref('sessions/'+selectedUser+'/messages').push({
+    sender:'bot',
+    message:text,
+    timestamp:Date.now(),
+    fromAdmin:true
+  });
+  
+  // Kullanıcının son sorusunu bul
+  const userMsgs=Object.values(sessions[selectedUser].messages||{}).filter(m=>m.sender==='user').sort((a,b)=>b.timestamp-a.timestamp);
+  const lastUserMsg=userMsgs[0];
+  
+  if(lastUserMsg){
+    lastManualReply={
+      question:lastUserMsg.message,
+      response:text,
+      sessionId:selectedUser,
+      timestamp:Date.now()
+    };
+    
+    // Öğrenme modalını göster
+    document.getElementById('learnQuestion').textContent=lastUserMsg.message;
+    document.getElementById('learnResponse').textContent=text;
+    document.getElementById('learnModal').classList.add('show');
+  }
+  
+  input.value='';
+  toast('Yanıt gönderildi!','success');
+}
+
+function confirmLearn(){
+  if(!lastManualReply.question||!db)return;
+  
+  const learnData={
+    question:lastManualReply.question.toLowerCase(),
+    response:lastManualReply.response,
+    learnedAt:Date.now(),
+    learnedFrom:lastManualReply.sessionId
+  };
+  
+  db.ref('learned_responses').push(learnData);
+  
+  // Bekleyen soruları temizle
+  Object.entries(pendingQuestions).forEach(([id,q])=>{
+    if(q.question===lastManualReply.question){
+      db.ref('pending_questions/'+id).remove();
+    }
+  });
+  
+  // Needs attention flag'i kaldır
+  db.ref('sessions/'+lastManualReply.sessionId+'/info/needsAttention').set(false);
+  db.ref('sessions/'+lastManualReply.sessionId+'/info/hasPendingQuestion').set(false);
+  
+  closeModal('learnModal');
+  toast('Bot öğrendi! Artık bu soruya otomatik cevap verecek! 🎉','success');
+  
+  lastManualReply={};
+}
+
+function renderPending(){
+  const el=document.getElementById('pendingList');
+  const list=Object.entries(pendingQuestions).filter(([k,v])=>v.status==='pending');
+  
+  if(!list.length){
+    el.innerHTML='<div class="empty"><div class="icon">✅</div>Bekleyen soru yok!</div>';
+    return;
+  }
+  
+  el.innerHTML=list.map(([id,q])=>`
+    <div class="pending-item">
+      <div class="header">
+        <span style="color:#ef4444;font-weight:bold;font-size:0.9rem">⚠️ BOT CEVAPLAYAMADI</span>
+        <span style="font-size:0.7rem;color:#64748b">${new Date(q.timestamp).toLocaleString('tr-TR')}</span>
+      </div>
+      <div class="question">❓ "${q.question}"</div>
+      <div class="context">
+        <div style="font-weight:600;margin-bottom:5px;color:#94a3b8">💬 Önceki konuşma:</div>
+        ${q.conversationHistory||'Yok'}
+      </div>
+      <div class="meta">Session: ${q.sessionId.slice(-8)}</div>
+      <div class="pending-actions">
+        <button class="btn btn-warning" onclick="event.stopPropagation();takeoverFromPending('${q.sessionId}','${id}')">👤 Devral & Yanıtla</button>
+        <button class="btn btn-danger" onclick="event.stopPropagation();dismissPending('${id}')">❌ Yoksay</button>
+        <button class="btn btn-success" onclick="event.stopPropagation();teachResponse('${q.question}', '${id}')" style="margin-left:auto">🧠 Öğret</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function takeoverFromPending(sessionId,qId){
+  selectedUser=sessionId;
+  selectUser(sessionId);
+  takeover();
+  dismissPending(qId);
+  switchTab('config');
+  document.getElementById('replyInput').focus();
+  toast('Manuel kontrolü aldınız! Yanıt yazabilirsiniz.','success');
+}
+
+function dismissPending(id){
+  showModal('⚠️ Soruyu Yoksay',
+           'Bu soruyu yoksaymak istediğinizden emin misiniz? Soru silinecek ve bot bu konuda öğrenmeyecek.',
+           'İptal', 'Evet, Yoksay', () => confirmDismiss(id));
+}
+
+function confirmDismiss(id){
+  if(db)db.ref('pending_questions/'+id).remove();
+  document.querySelector('.modal.show').remove();
+  toast('Soru silindi','success');
+}
+
+function renderLearned(searchTerm = ''){
+  const el=document.getElementById('learnedList');
+  let list=Object.entries(learnedResponses);
+  
+  // Arama terimi varsa sadece sorularda filtrele
+  if(searchTerm.trim() !== ''){
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    list = list.filter(([id, data]) =>
+      data.question.toLowerCase().includes(lowerSearchTerm)
+    );
+  }
+  
+  if(!list.length){
+    if(searchTerm.trim() !== ''){
+      el.innerHTML=`<div class="empty"><div class="icon">🔍</div>"${searchTerm}" için sonuç bulunamadı</div>`;
+    } else {
+      el.innerHTML='<div class="empty"><div class="icon">🧠</div>Henüz öğrenilmiş yanıt yok</div>';
+    }
+    return;
+  }
+  
+  // Sorulara göre grupla
+  const groupedByQuestion = {};
+  list.forEach(([id, data]) => {
+    const question = data.question;
+    if (!groupedByQuestion[question]) {
+      groupedByQuestion[question] = [];
+    }
+    groupedByQuestion[question].push({id, ...data});
+  });
+  
+  el.innerHTML=Object.entries(groupedByQuestion).map(([question, responses])=>`
+    <div class="learned-item">
+      <div class="question">🧠 Soru: "${highlightSearchTerm(question, searchTerm)}"</div>
+      <div class="responses-list">
+        ${responses.map((r, index) => `
+          <div class="response-item" style="margin-bottom:8px;padding:8px;background:#0a0a0f;border-radius:6px" id="response-${r.id}">
+            <div class="response">💬 Yanıt ${index + 1}: <span id="response-text-${r.id}">${r.response}</span></div>
+            <div class="meta">Öğrenildi: ${new Date(r.learnedAt).toLocaleString('tr-TR')} | Session: ${r.learnedFrom.slice(-8)}</div>
+            <div class="learned-actions" style="margin-top:5px">
+              <button class="btn btn-warning" style="padding:4px 8px;font-size:0.7rem" onclick="editLearnedResponse('${r.id}')">✏️ Düzenle</button>
+              <button class="btn btn-danger" style="padding:4px 8px;font-size:0.7rem" onclick="deleteLearned('${r.id}')">🗑️ Sil</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="learned-actions" style="margin-top:10px">
+        <button class="btn btn-success" style="padding:6px 12px;font-size:0.75rem" onclick="addAlternativeResponse('${question}')">➕ Alternatif Yanıt Ekle</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function searchLearnedResponses(){
+  const searchInput = document.getElementById('searchLearned');
+  const searchTerm = searchInput.value;
+  renderLearned(searchTerm);
+}
+
+function highlightSearchTerm(text, searchTerm){
+  if(!searchTerm?.trim()) return text;
+  return text.replace(new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
+                     '<mark style="background:#667eea;color:#fff;padding:2px 4px;border-radius:3px">$&</mark>');
+}
+
+function deleteLearned(id){
+  if(!confirm('Bu öğrenilmiş yanıtı silmek istediğinize emin misiniz?'))return;
+  if(db)db.ref('learned_responses/'+id).remove();
+  toast('Öğrenilmiş yanıt silindi','success');
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+}
+
+function closeModal(id){
+  document.getElementById(id).classList.remove('show');
+}
+
+
+function toast(msg,type='success'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast show '+type;
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+function showModal(title, message, cancelText, confirmText = null, onConfirm = null){
+  const modal=document.createElement('div');
+  modal.className='modal show';
+  modal.innerHTML=`
+    <div class="modal-content">
+      <h3>${title}</h3>
+      <p style="font-size:0.9rem;color:#94a3b8;line-height:1.6;margin:20px 0">${message}</p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="this.closest('.modal').remove()">${cancelText}</button>
+        ${confirmText ? `<button class="btn btn-danger" onclick="this.closest('.modal').remove();(${onConfirm})()">${confirmText}</button>` : ''}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// Sohbet adını düzenleme fonksiyonları
+let editingUserId = null;
+
+function editUserName(userId, index) {
+  editingUserId = userId;
+  const currentName = sessions[userId]?.info?.customName || 'isimsiz';
+  const currentPhone = sessions[userId]?.info?.phoneNumber || '';
+  document.getElementById('newUserName').value = currentName;
+  document.getElementById('newUserPhone').value = currentPhone;
+  document.getElementById('editNameModal').classList.add('show');
+  document.getElementById('newUserName').focus();
+}
+
+function saveUserName() {
+  const newName = document.getElementById('newUserName').value.trim();
+  const newPhone = document.getElementById('newUserPhone').value.trim();
+  if (!newName || !editingUserId || !db) return;
+  
+  // Kullanıcı adını kaydet
+  db.ref('sessions/' + editingUserId + '/info/customName').set(newName);
+  
+  // Telefon numarasını kaydet (boş bırakılsa bile)
+  if (newPhone) {
+    db.ref('sessions/' + editingUserId + '/info/phoneNumber').set(newPhone);
+  } else {
+    // Telefon numarası boşsa veriyi sil
+    db.ref('sessions/' + editingUserId + '/info/phoneNumber').remove();
+  }
+  
+  renderUsers();
+  if (selectedUser === editingUserId) {
+    showMessages(editingUserId);
+  }
+  closeModal('editNameModal');
+  toast('Kullanıcı bilgileri güncellendi!', 'success');
+  editingUserId = null;
+}
+
+// Öğret fonksiyonları
+let teachingQuestion = null;
+let teachingPendingId = null;
+
+function teachResponse(question, pendingId) {
+  teachingQuestion = question;
+  teachingPendingId = pendingId;
+  document.getElementById('teachQuestion').textContent = question;
+  document.getElementById('teachResponse').value = '';
+  document.getElementById('teachModal').classList.add('show');
+  document.getElementById('teachResponse').focus();
+}
+
+function confirmTeach() {
+  const response = document.getElementById('teachResponse').value.trim();
+  if (!response || !teachingQuestion || !db) return;
+  
+  // Öğrenilmiş yanıtı kaydet
+  const learnData = {
+    question: teachingQuestion.toLowerCase(),
+    response: response,
+    learnedAt: Date.now(),
+    learnedFrom: 'admin_teach'
+  };
+  
+  db.ref('learned_responses').push(learnData);
+  
+  // Bekleyen soruyu sil
+  if (teachingPendingId) {
+    db.ref('pending_questions/' + teachingPendingId).remove();
+  }
+  
+  closeModal('teachModal');
+  toast('Yanıt öğretildi! Bot artık bu soruya cevap verebilir 🎉', 'success');
+  
+  teachingQuestion = null;
+  teachingPendingId = null;
+}
+
+// Alternatif yanıt ekleme fonksiyonları
+let addingAlternativeQuestion = null;
+
+function addAlternativeResponse(question) {
+  addingAlternativeQuestion = question;
+  document.getElementById('alternativeQuestion').textContent = question;
+  document.getElementById('alternativeResponse').value = '';
+  document.getElementById('addResponseModal').classList.add('show');
+  document.getElementById('alternativeResponse').focus();
+}
+
+function confirmAlternativeResponse() {
+  const response = document.getElementById('alternativeResponse').value.trim();
+  if (!response || !addingAlternativeQuestion || !db) return;
+  
+  // Yeni alternatif yanıtı kaydet
+  const learnData = {
+    question: addingAlternativeQuestion.toLowerCase(),
+    response: response,
+    learnedAt: Date.now(),
+    learnedFrom: 'admin_alternative'
+  };
+  
+  db.ref('learned_responses').push(learnData);
+  
+  closeModal('addResponseModal');
+  toast('Alternatif yanıt eklendi! Bot artık bu soru için daha fazla cevap seçeneğine sahip 🎉', 'success');
+  
+  addingAlternativeQuestion = null;
+}
+
+// Enter ile yanıt gönderme (Shift+Enter = yeni satır, Enter = gönder)
+document.getElementById('replyInput').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){
+    e.preventDefault();
+    sendManualReply();
+  }
+});
+
+// Modal input'ları için Enter tuşu desteği
+document.getElementById('newUserName').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    document.getElementById('newUserPhone').focus();
+  }
+});
+
+document.getElementById('newUserPhone').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    saveUserName();
+  }
+});
+
+document.getElementById('teachResponse').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){
+    e.preventDefault();
+    confirmTeach();
+  }
+});
+
+document.getElementById('alternativeResponse').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){
+    e.preventDefault();
+    confirmAlternativeResponse();
+  }
+});
+
+// Sağ tık menüsü fonksiyonları
+let contextMenuUserId = null;
+let contextMenuIndex = null;
+
+function showContextMenu(event, userId, index) {
+  event.preventDefault();
+  contextMenuUserId = userId;
+  contextMenuIndex = index;
+  
+  const menu = document.getElementById('contextMenu');
+  menu.style.left = event.pageX + 'px';
+  menu.style.top = event.pageY + 'px';
+  menu.classList.add('show');
+}
+
+function hideContextMenu() {
+  document.getElementById('contextMenu').classList.remove('show');
+}
+
+function editFromContextMenu() {
+  if (contextMenuUserId !== null && contextMenuIndex !== null) {
+    editUserName(contextMenuUserId, contextMenuIndex);
+  }
+  hideContextMenu();
+}
+
+
+// Sayfa herhangi bir yerine tıklandığında menüyü kapat
+document.addEventListener('click', function(event) {
+  if (!event.target.closest('#contextMenu')) {
+    hideContextMenu();
+  }
+});
+
+document.addEventListener('contextmenu', function(event) {
+  if (!event.target.closest('.user-item')) {
+    hideContextMenu();
+  }
+});
+
+// Öğrenilen yanıtı düzenleme fonksiyonları
+let editingLearnedId = null;
+
+function editLearnedResponse(id) {
+  editingLearnedId = id;
+  const response = learnedResponses[id];
+  
+  if (response) {
+    document.getElementById('editLearnedQuestion').textContent = response.question;
+    document.getElementById('editLearnedResponse').value = response.response;
+    document.getElementById('editLearnedModal').classList.add('show');
+    
+    // Textarea'yı mevcut metin uzunluğuna göre ayarla
+    const textarea = document.getElementById('editLearnedResponse');
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+    
+    document.getElementById('editLearnedResponse').focus();
+  }
+}
+
+function saveLearnedEdit() {
+  const newResponse = document.getElementById('editLearnedResponse').value.trim();
+  
+  if (!newResponse || !editingLearnedId || !db) return;
+  
+  db.ref('learned_responses/' + editingLearnedId + '/response').set(newResponse)
+    .then(() => {
+      closeModal('editLearnedModal');
+      toast('Öğrenilmiş yanıt güncellendi!', 'success');
+      editingLearnedId = null;
+    })
+    .catch((error) => {
+      toast('Yanıt güncellenirken hata oluştu: ' + error.message, 'error');
+    });
+}
+
+// Modal input'ları için Enter tuşu desteği
+document.getElementById('editLearnedResponse').addEventListener('keydown', function(e){
+  if(e.key==='Enter' && !e.shiftKey){
+    e.preventDefault();
+    saveLearnedEdit();
+  }
+});
+
+// ESC tuşu ile sohbetten çıkma özelliği
+document.addEventListener('keydown', function(event) {
+  // ESC tuşuna basıldığında
+  if (event.key === 'Escape') {
+    const openModal = document.querySelector('.modal.show');
+    const openContextMenu = document.querySelector('#contextMenu.show');
+    
+    // Önce modal pencere varsa kapat
+    if (openModal) {
+      openModal.classList.remove('show');
+      return;
+    }
+    
+    // Sonra context menü açıksa kapat
+    if (openContextMenu) {
+      openContextMenu.classList.remove('show');
+      return;
+    }
+    
+    // Hiçbir şey açık değilse ve aktif sohbet varsa sohbeti kapat
+    if (selectedUser !== null) {
+      exitChat();
+    }
+  }
+});
+
+// Sohbetten çıkma fonksiyonu
+function exitChat() {
+  selectedUser = null;
+  
+  // UI'i güncelle
+  document.getElementById('chatTitle').textContent = '💬 Mesajlar';
+  document.getElementById('messageList').innerHTML = '<div class="empty"><div class="icon">💬</div>Kullanıcı seçin</div>';
+  document.getElementById('replyInput').value = '';
+  
+  // Kullanıcı listesindeki aktif işaretini kaldır
+  document.querySelectorAll('.user-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  
+  // Modal badge'i varsayılan durumuna getir
+  const badge = document.getElementById('modeBadge');
+  badge.className = 'mode-badge mode-auto';
+  badge.textContent = '🤖 Otomatik';
+  
+  toast('Sohbetten çıkıldı', 'success');
+}
+</script>
+</body>
+</html>
