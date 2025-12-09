@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 :: Değişkenleri ayarla
 set PROJE_KLASORU=C:\Users\berka\Downloads\chatbot
-set GITHUB_KULLANICI=tifil213
+set GITHUB_KULLANICI=tifil123
 set DEPO_ADI=chatbot-yedekleme
 set TARIH=%date:~-4%-%date:~4,2%-%date:~7,2%
 
