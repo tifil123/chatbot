@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot Widget Demo</title>
+  <!-- UUID Kütüphanesi -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuidv4.min.js"></script>
+  <!-- Firebase Service Katmanları -->
+  <script src="../config/firebase-config.js"></script>
+  <script src="../services/firebase-service.js"></script>
+  <style>
+    /* DEMO SAYFA STİLİ */
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5
+    }
+
+    .demo-page {
+      padding: 50px;
+      max-width: 800px;
+      margin: 0 auto
+    }
+
+    .demo-page h1 {
+      color: #333;
+      margin-bottom: 20px
+    }
+
+    .demo-page p {
+      color: #666;
+      line-height: 1.8;
+      margin-bottom: 15px
+    }
+
+    /* CHATBOT WIDGET STİLLERİ */
+    .chat-widget-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      z-index: 9998;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s
+    }
+
+    .chat-widget-btn:hover {
+      transform: scale(1.1)
+    }
+
+    .chat-widget-btn svg {
+      width: 30px;
+      height: 30px;
+      fill: #fff
+    }
+
+    .chat-widget-btn .badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      width: 22px;
+      height: 22px;
+      background: #ef4444;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 11px;
+      font-weight: bold;
+      display: none;
+      align-items: center;
+      justify-content: center
+    }
+
+    .chat-widget-btn .badge.show {
+      display: flex
+    }
+
+    .chat-widget {
+      position: fixed;
+      bottom: 90px;
+      right: 20px;
+      width: 380px;
+      height: 550px;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+      display: none;
+      flex-direction: column;
+      z-index: 9999;
+      animation: slideUp 0.3s ease
+    }
+
+    .chat-widget.open {
+      display: flex
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .chat-widget-header {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+      padding: 20px;
+      border-radius: 20px 20px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between
+    }
+
+    .chat-widget-header .info {
+      display: flex;
+      align-items: center;
+      gap: 12px
+    }
+
+    .chat-widget-header .avatar {
+      width: 45px;
+      height: 45px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem
+    }
+
+    .chat-widget-header h3 {
+      margin: 0;
+      font-size: 1.1rem
+    }
+
+    .chat-widget-header p {
+      margin: 0;
+      font-size: 0.8rem;
+      opacity: 0.9;
+      margin-top: 3px
+    }
+
+    .chat-widget-header .close-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s
+    }
+
+    .chat-widget-header .close-btn:hover {
+      background: rgba(255, 255, 255, 0.3)
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: #f8f9fa
+    }
+
+    .message {
+      margin-bottom: 15px;
+      display: flex;
+      gap: 10px;
+      animation: fadeIn 0.3s ease
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .message.user {
+      flex-direction: row-reverse
+    }
+
+    .message .bubble {
+      max-width: 75%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      word-wrap: break-word
+    }
+
+    .message.bot .bubble {
+      background: #fff;
+      color: #333;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+      border-bottom-left-radius: 4px
+    }
+
+    .message.user .bubble {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+      border-bottom-right-radius: 4px
+    }
+
+    .message .time {
+      font-size: 0.7rem;
+      color: #999;
+      margin-top: 5px
+    }
+
+    .typing-indicator {
+      display: none;
+      padding: 12px 16px;
+      background: #fff;
+      border-radius: 16px;
+      width: 60px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08)
+    }
+
+    .typing-indicator.show {
+      display: block
+    }
+
+    .typing-indicator span {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin: 0 2px;
+      background: #999;
+      border-radius: 50%;
+      animation: bounce 1.4s infinite
+    }
+
+    .typing-indicator span:nth-child(2) {
+      animation-delay: 0.2s
+    }
+
+    .typing-indicator span:nth-child(3) {
+      animation-delay: 0.4s
+    }
+
+    @keyframes bounce {
+
+      0%,
+      60%,
+      100% {
+        transform: translateY(0)
+      }
+
+      30% {
+        transform: translateY(-6px)
+      }
+    }
+
+    .chat-input-area {
+      padding: 15px 20px;
+      background: #fff;
+      border-top: 1px solid #e9ecef;
+      border-radius: 0 0 20px 20px
+    }
+
+    .chat-input-wrapper {
+      display: flex;
+      gap: 10px;
+      align-items: center
+    }
+
+    .chat-input-area input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid #e2e8f0;
+      border-radius: 25px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s
+    }
+
+    .chat-input-area input:focus {
+      border-color: #667eea
+    }
+
+    .chat-input-area button {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s
+    }
+
+    .chat-input-area button:hover {
+      transform: scale(1.05)
+    }
+
+    .chat-input-area button svg {
+      width: 20px;
+      height: 20px;
+      fill: #fff
+    }
+
+    .chat-input-area .image-btn {
+      background: #f8f9fa;
+      border: 1px solid #e2e8f0
+    }
+
+    .chat-input-area .image-btn:hover {
+      background: #e9ecef;
+      transform: scale(1.05)
+    }
+
+    .chat-input-area .image-btn svg {
+      fill: #6c757d
+    }
+
+    .image-preview-container {
+      display: none;
+      position: relative;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 10px;
+      margin-bottom: 10px
+    }
+
+    .image-preview-container.show {
+      display: block
+    }
+
+    .image-preview {
+      max-width: 100%;
+      max-height: 150px;
+      border-radius: 8px;
+      object-fit: cover
+    }
+
+    .image-preview-close {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 24px;
+      height: 24px;
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    .powered-by {
+      text-align: center;
+      font-size: 0.7rem;
+      color: #999;
+      padding: 10px 0
+    }
+
+    @media (max-width:480px) {
+      .chat-widget {
+        width: calc(100vw - 20px);
+        right: 10px;
+        left: 10px
+      }
+    }
+
+    /* WIDGET REPLY ÖZELLİĞİ STİLLERİ */
+
+    /* Mesaj sağ tık menüsü */
+    .widget-msg-context-menu {
+      position: fixed;
+      background: #fff;
+      border-radius: 12px;
+      padding: 8px 0;
+      min-width: 130px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      z-index: 10001;
+      display: none
+    }
+
+    .widget-msg-context-menu.show {
+      display: block
+    }
+
+    .widget-msg-context-menu-item {
+      padding: 12px 16px;
+      color: #333;
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.15s
+    }
+
+    .widget-msg-context-menu-item:hover {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff
+    }
+
+    /* Reply Preview - Input üstü */
+    .widget-reply-preview {
+      display: none;
+      padding: 10px 15px;
+      background: #f8f9fa;
+      border-left: 3px solid #667eea;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      position: relative;
+      animation: slideDown 0.2s ease
+    }
+
+    .widget-reply-preview.show {
+      display: block
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .widget-reply-preview .reply-sender {
+      font-size: 0.75rem;
+      color: #667eea;
+      font-weight: 600;
+      margin-bottom: 4px
+    }
+
+    .widget-reply-preview .reply-text {
+      font-size: 0.8rem;
+      color: #666;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 250px
+    }
+
+    .widget-reply-preview .reply-close {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #e9ecef;
+      border: none;
+      color: #666;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    .widget-reply-preview .reply-close:hover {
+      background: #ef4444;
+      color: #fff
+    }
+
+    /* Reply Reference - Mesaj içinde - ÇOK KOMPAKT */
+    .widget-reply-reference {
+      background: rgba(102, 126, 234, 0.1);
+      border-left: 2px solid #667eea;
+      border-radius: 3px;
+      padding: 2px 5px;
+      margin-bottom: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      max-width: 180px
+    }
+
+    .widget-reply-reference:hover {
+      background: rgba(102, 126, 234, 0.2)
+    }
+
+    .widget-reply-reference .ref-sender {
+      font-size: 0.55rem;
+      color: #667eea;
+      font-weight: 600;
+      white-space: nowrap
+    }
+
+    .widget-reply-reference .ref-text {
+      font-size: 0.55rem;
+      color: #666;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100px
+    }
+
+    .message.user .widget-reply-reference {
+      background: rgba(255, 255, 255, 0.2);
+      border-left-color: rgba(255, 255, 255, 0.5)
+    }
+
+    .message.user .widget-reply-reference .ref-sender {
+      color: rgba(255, 255, 255, 0.9)
+    }
+
+    .message.user .widget-reply-reference .ref-text {
+      color: rgba(255, 255, 255, 0.8)
+    }
+
+    /* Swipe gesture için mesaj wrapper */
+    .message-swipe-wrapper {
+      position: relative;
+      overflow: hidden;
+      width: 100%
+    }
+
+    .message-swipe-wrapper .swipe-indicator {
+      position: absolute;
+      left: -50px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0;
+      transition: opacity 0.2s, left 0.2s;
+      font-size: 1.5rem
+    }
+
+    .message-swipe-wrapper.swiping .swipe-indicator {
+      opacity: 1;
+      left: 10px
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- DEMO SAYFA İÇERİĞİ -->
+  <div class="demo-page">
+    <h1>🎉 Chatbot Widget Demo Sayfası</h1>
+    <p>Bu sayfa chatbot widget'ının nasıl göründüğünü göstermek için bir demo sayfadır.</p>
+    <p><strong>Sağ alt köşeye bak!</strong> Mor yuvarlak buton göreceksin. O senin chatbot widget'ın. Tıklayınca
+      açılacak.</p>
+
+    <h2>📌 Nasıl Kullanılır?</h2>
+    <ol style="line-height:2;color:#666">
+      <li>Firebase URL'nizi girin (widget açıldığında göreceksiniz)</li>
+      <li>Bağlan butonuna tıklayın</li>
+      <li>Artık chatbot hazır!</li>
+      <li>Test mesajı gönderin</li>
+      <li>Admin panel'den yanıt verin</li>
+    </ol>
+
+    <h2>🌐 Kendi Sitenize Nasıl Eklersiniz?</h2>
+    <p>Bu sayfanın kodunu kopyalayıp kendi sitenize yapıştırın. Sadece Firebase URL'yi değiştirin, o kadar!</p>
+
+    <div style="background:#fff;padding:20px;border-radius:10px;margin-top:30px">
+      <h3>💡 Widget Özellikleri:</h3>
+      <ul style="line-height:2;color:#666">
+        <li>✅ Sağ alt köşede yüzer</li>
+        <li>✅ Tıklayınca açılır/kapanır</li>
+        <li>✅ Mobil uyumlu</li>
+        <li>✅ Firebase ile senkronize</li>
+        <li>✅ Admin panel ile entegre</li>
+        <li>✅ Öğrenen AI sistemi</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- CHATBOT WIDGET -->
+  <button class="chat-widget-btn" id="chatBtn" onclick="toggleWidget()">
+    <svg viewBox="0 0 24 24">
+      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+    </svg>
+    <span class="badge" id="chatBadge">0</span>
+  </button>
+
+  <div class="chat-widget" id="chatWidget">
+    <div class="chat-widget-header">
+      <div class="info">
+        <div class="avatar">🎧</div>
+        <div>
+          <h3>Müşteri Destek</h3>
+          <p>● Çevrimiçi</p>
+        </div>
+      </div>
+      <button class="close-btn" onclick="toggleWidget()">×</button>
+    </div>
+
+    <div class="chat-messages" id="widgetMessages"></div>
+    <div class="typing-indicator" id="widgetTyping">
+      <span></span><span></span><span></span>
+    </div>
+
+    <div class="chat-input-area">
+      <div style="padding-bottom:10px;border-bottom:1px solid #e9ecef;margin-bottom:10px" id="configArea">
+        <div style="padding:10px;background:#f8f9fa;border-radius:8px;margin-bottom:8px">
+          <div style="font-size:0.75rem;color:#6c757d;margin-bottom:3px">Firebase Database:</div>
+          <div style="font-size:0.7rem;color:#007bff;word-break:break-all" id="firebaseUrlDisplay">Yükleniyor...</div>
+        </div>
+        <div style="font-size:0.75rem;color:#28a745;text-align:center">✅ Bağlandı</div>
+      </div>
+      <!-- Widget Reply Preview -->
+      <div class="widget-reply-preview" id="widgetReplyPreview">
+        <div class="reply-sender" id="widgetReplySender">Kullanıcı</div>
+        <div class="reply-text" id="widgetReplyText">Mesaj...</div>
+        <button class="reply-close" onclick="clearWidgetReplyTo()">×</button>
+      </div>
+      <div class="chat-input-wrapper">
+        <input type="text" id="widgetInput" placeholder="Mesajınızı yazın..." disabled>
+        <button onclick="sendWidgetMessage()" id="widgetSendBtn" disabled>
+          <svg viewBox="0 0 24 24">
+            <path d="M2 21l21-9L2 3v7l15 2-15 2z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="powered-by">Powered by Smart AI</div>
+  </div>
+
+  <script>
+    let widgetDb = null;
+    let widgetSessionId = null;
+    let widgetOpen = false;
+    let widgetUnread = 0;
+    let widgetConversationHistory = [];
+
+    // Widget Reply özelliği için global değişkenler
+    let widgetReplyingTo = null;  // {messageId, message, sender}
+    let widgetMsgContextMenuTarget = null;
+
+    function toggleWidget() {
+      widgetOpen = !widgetOpen;
+      document.getElementById('chatWidget').classList.toggle('open', widgetOpen);
+      if (widgetOpen) {
+        widgetUnread = 0;
+        updateBadge();
+        if (widgetDb) document.getElementById('widgetInput').focus();
+      }
+    }
+
+    function updateBadge() {
+      const badge = document.getElementById('chatBadge');
+      badge.textContent = widgetUnread;
+      badge.classList.toggle('show', widgetUnread > 0);
+    }
+
+    async function connectWidgetFirebaseWithUrl(url) {
+      try {
+        // Config dosyasından URL al veya verilen URL'i kullan
+        const firebaseUrl = url || window.FirebaseConfig?.getActiveConfig?.()?.databaseURL;
+
+        if (!firebaseUrl) {
+          console.error('❌ Firebase URL bulunamadı! Config dosyası yüklenmemiş olabilir.');
+          return;
+        }
+
+        console.log('🔗 Widget Firebase bağlantısı kuruluyor:', firebaseUrl);
+        console.log('🔥 Firebase apps count (önce):', firebase.apps.length);
+        console.log('🔍 Widget kullanılan Firebase URL:', firebaseUrl);
+
+        // Firebase Service katmanını kullanarak bağlan
+        const config = { databaseURL: firebaseUrl };
+        widgetDb = await firebaseService.connect(config);
+
+        console.log('🔥 Firebase apps count (sonra):', firebase.apps.length);
+
+        widgetSessionId = sessionStorage.getItem('widget_session_id');
+        if (!widgetSessionId) {
+          // Güçlü ve benzersiz session ID oluştur - await ile bekle
+          try {
+            widgetSessionId = await firebaseService.createUniqueSessionId();
+            sessionStorage.setItem('widget_session_id', widgetSessionId);
+            console.log('🆕 Güçlü session oluşturuldu:', widgetSessionId);
+          } catch (error) {
+            console.error('❌ Session oluşturma hatası:', error);
+            // Fallback: basit ID oluştur
+            widgetSessionId = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+            sessionStorage.setItem('widget_session_id', widgetSessionId);
+          }
+        }
+
+        // Session bilgilerini güncelle (artık widgetSessionId kesinlikle dolu)
+        const sessionInfo = {
+          startTime: Date.now(),
+          lastActive: Date.now(),
+          userAgent: navigator.userAgent.slice(0, 100),
+          status: 'active',
+          mode: 'auto',
+          customName: 'isimsiz'
+        };
+
+        console.log('📝 Session bilgileri kaydediliyor:', sessionInfo);
+        try {
+          await firebaseService.update('sessions/' + widgetSessionId + '/info', sessionInfo);
+          console.log('✅ Session başarıyla oluşturuldu');
+        } catch (error) {
+          console.error('❌ Session bilgileri kaydetme hatası:', error);
+        }
+
+
+
+        // Admin yanıtlarını dinle - firebaseService kullanarak
+        firebaseService.subscribe('sessions/' + widgetSessionId + '/messages', (snap) => {
+          const msg = snap.val();
+          if (msg.sender === 'bot' && msg.fromAdmin && !document.querySelector(`[data-msg-id="${snap.key}"]`)) {
+            hideWidgetTyping();
+            // replyTo bilgisini de gönder
+            addWidgetMessage(msg.message, false, snap.key, msg.replyTo || null);
+            if (!widgetOpen) {
+              widgetUnread++;
+              updateBadge();
+            }
+          }
+        }, 'child_added');
+
+        document.getElementById('widgetInput').disabled = false;
+        document.getElementById('widgetSendBtn').disabled = false;
+        document.getElementById('configArea').style.display = 'none';
+
+        addWidgetMessage('Merhaba! Size nasıl yardımcı olabilirim? 😊', false);
+        // alert('Firebase bağlandı! Artık mesaj gönderebilirsiniz.');
+      } catch (e) {
+        console.error('Widget Firebase bağlantı hatası:', e);
+        // Hata durumunda kullanıcıya gösterme, sadece konsola yaz
+      }
+    }
+
+    // Geriye dönük uyumluluk için eski fonksiyonu koru
+    function connectWidgetFirebase() {
+      // Bu fonksiyon artık config üzerinden çalışır
+      const firebaseUrl = window.FirebaseConfig?.getActiveConfig?.()?.databaseURL;
+      if (firebaseUrl) {
+        connectWidgetFirebaseWithUrl(firebaseUrl);
+      } else {
+        console.error('❌ Firebase URL bulunamadı!');
+      }
+    }
+
+    function addWidgetMessage(text, isUser, msgId = null, replyTo = null) {
+      const container = document.getElementById('widgetMessages');
+      const div = document.createElement('div');
+      div.className = 'message ' + (isUser ? 'user' : 'bot');
+      if (msgId) div.setAttribute('data-msg-id', msgId);
+      div.setAttribute('data-msg-text', (text || '').slice(0, 100));
+      div.setAttribute('data-msg-sender', isUser ? 'user' : 'bot');
+
+      const time = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+      const formattedText = (text || '').replace(/\n/g, '<br>');
+
+      // Reply reference oluştur
+      let replyRefHtml = '';
+      if (replyTo) {
+        const senderLabel = replyTo.sender === 'user' ? '👤 Sen' : '🤖 Bot';
+        const shortMsg = (replyTo.message || '').slice(0, 40) + ((replyTo.message || '').length > 40 ? '...' : '');
+        replyRefHtml = `
+          <div class="widget-reply-reference" onclick="scrollToWidgetMessage('${replyTo.messageId}')">
+            <div class="ref-sender">${senderLabel}</div>
+            <div class="ref-text">${shortMsg}</div>
+          </div>
+        `;
+      }
+
+      div.innerHTML = `
+    <div class="bubble">${replyRefHtml}${formattedText}</div>
+    <div class="time">${time}</div>
+  `;
+
+      // Sağ tık menüsü ekle (bilgisayar için)
+      div.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+        showWidgetMsgContextMenu(e, msgId || Date.now().toString(), text, isUser ? 'user' : 'bot');
+      });
+
+      // Touch swipe desteği (mobil için)
+      let touchStartX = 0;
+      div.addEventListener('touchstart', function (e) {
+        touchStartX = e.touches[0].clientX;
+      }, { passive: true });
+
+      div.addEventListener('touchmove', function (e) {
+        const touchX = e.touches[0].clientX;
+        const diff = touchX - touchStartX;
+        if (diff > 50) {
+          // Sağa swipe - yanıtla
+          div.style.transform = `translateX(${Math.min(diff - 50, 50)}px)`;
+          div.style.opacity = '0.8';
+        }
+      }, { passive: true });
+
+      div.addEventListener('touchend', function (e) {
+        const touchEndX = e.changedTouches[0].clientX;
+        const diff = touchEndX - touchStartX;
+        if (diff > 80) {
+          // Swipe tamamlandı - yanıtla
+          setWidgetReplyTo(msgId || Date.now().toString(), text, isUser ? 'user' : 'bot');
+        }
+        div.style.transform = '';
+        div.style.opacity = '';
+      });
+
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function showWidgetTyping() {
+      document.getElementById('widgetTyping').classList.add('show');
+      document.getElementById('widgetMessages').scrollTop = document.getElementById('widgetMessages').scrollHeight;
+    }
+
+    function hideWidgetTyping() {
+      document.getElementById('widgetTyping').classList.remove('show');
+    }
+
+    async function sendWidgetMessage() {
+      const input = document.getElementById('widgetInput');
+      const text = input.value.trim();
+      if (!text || !widgetDb) return;
+
+      console.log('📤 Mesaj gönderiliyor:', text);
+
+      input.value = '';
+      addWidgetMessage(text, true);
+
+      // Firebase'e kaydet - firebaseService kullanarak
+      console.log('📤 Mesaj gönderiliyor:', text);
+      console.log('📤 Session ID:', widgetSessionId);
+      const firebaseUrl = window.FirebaseConfig?.getActiveConfig?.()?.databaseURL;
+      console.log('📤 Firebase URL:', firebaseUrl);
+
+      try {
+        // Önce session'ın var olduğundan emin ol
+        const sessionPath = 'sessions/' + widgetSessionId;
+        console.log('🔥 Session kontrol yolu:', sessionPath);
+
+        const sessionData = await firebaseService.read(sessionPath);
+        console.log('🔥 Mevcut session verisi:', sessionData);
+
+        if (!sessionData) {
+          console.log('❌ Session bulunamadı, yeni session oluşturuluyor...');
+          // Session yoksa oluştur
+          const sessionInfo = {
+            startTime: Date.now(),
+            lastActive: Date.now(),
+            userAgent: navigator.userAgent.slice(0, 100),
+            status: 'active',
+            mode: 'auto',
+            customName: 'isimsiz'
+          };
+
+          await firebaseService.write(sessionPath + '/info', sessionInfo);
+          console.log('✅ Yeni session oluşturuldu');
+        }
+
+        // Mesajı yaz
+        const messagePath = 'sessions/' + widgetSessionId + '/messages';
+        console.log('🔥 Firebase yazma yolu:', messagePath);
+
+        // Mesaj objesi oluştur
+        const msgData = {
+          sender: 'user',
+          message: text,
+          timestamp: Date.now()
+        };
+
+        // Eğer bir mesaja yanıt veriyorsak, replyTo ekle
+        if (widgetReplyingTo) {
+          msgData.replyTo = {
+            messageId: widgetReplyingTo.messageId,
+            message: (widgetReplyingTo.message || '').slice(0, 50),
+            sender: widgetReplyingTo.sender
+          };
+        }
+
+        console.log('🔥 Yazılacak veri:', msgData);
+
+        // Firebase push kullanarak yeni mesaj ekle
+        await firebaseService.push(messagePath, msgData);
+        console.log('✅ Mesaj Firebase\'e push ile kaydedildi - kontrol edin:', messagePath);
+        console.log('✅ Mesaj Firebase\'e kaydedildi - kontrol edin:', messagePath);
+
+        // Reply preview'ı temizle
+        clearWidgetReplyTo();
+
+        // Session bilgisini güncelle
+        await firebaseService.update(sessionPath + '/info', {
+          lastActive: Date.now(),
+          lastMessage: text.slice(0, 50)
+        });
+        console.log('✅ Session bilgileri güncellendi');
+
+      } catch (error) {
+        console.error('❌ Firebase yazma hatası:', error);
+      }
+
+
+
+      widgetConversationHistory.push({ sender: 'user', message: text });
+      if (widgetConversationHistory.length > 10) widgetConversationHistory.shift();
+
+      // Öğrenilmiş yanıt kontrol et
+      showWidgetTyping();
+
+      setTimeout(async () => {
+        try {
+          const learnedData = await firebaseService.read('learned_responses');
+          const responses = Object.values(learnedData || {}).filter(item => item.question === text.toLowerCase());
+
+          hideWidgetTyping();
+
+          if (responses.length > 0) {
+            // Birden fazla yanıt varsa rastgele birini seç
+            const selectedResponse = responses[Math.floor(Math.random() * responses.length)].response;
+
+            // Kullanıcının mesajına replyTo oluştur
+            const userMsgReplyTo = {
+              messageId: 'user_' + Date.now(),  // Widget'ta msgId olmayabilir, benzersiz ID oluştur
+              message: text.slice(0, 50),
+              sender: 'user'
+            };
+
+            addWidgetMessage(selectedResponse, false, null, userMsgReplyTo);
+            // ⚠️ DÜZELTME: write yerine push kullanılmalı - write tüm mesajları siliyor!
+            await firebaseService.push('sessions/' + widgetSessionId + '/messages', {
+              sender: 'bot',
+              message: selectedResponse,
+              timestamp: Date.now(),
+              auto: true,
+              learned: true,
+              replyTo: userMsgReplyTo  // Kullanıcı mesajına yanıt referansı
+            });
+          } else {
+            // Yanıt bulunamadı - pending'e kaydet
+            const recentHistory = widgetConversationHistory.slice(-5).map(h => h.sender + ': ' + h.message).join('\n');
+            await firebaseService.push('pending_questions', {
+              sessionId: widgetSessionId,
+              question: text,
+              conversationHistory: recentHistory,
+              timestamp: Date.now(),
+              status: 'pending'
+            });
+
+            await firebaseService.update('sessions/' + widgetSessionId + '/info', {
+              hasPendingQuestion: true,
+              needsAttention: true
+            });
+          }
+        } catch (error) {
+          console.error('❌ Öğrenilmiş yanıtlar kontrol edilirken hata:', error);
+          hideWidgetTyping();
+        }
+      }, 800);
+    }
+
+    // Enter ile gönder
+    document.getElementById('widgetInput').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') sendWidgetMessage();
+    });
+
+    // ESC tuşuyla widget'ı kapat
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && widgetOpen) {
+        toggleWidget();
+      }
+    });
+
+    // Otomatik Firebase bağlantısı
+    window.addEventListener('load', () => {
+      console.log('🚀 Widget yükleniyor...');
+
+      // Firebase URL'sini config'den al
+      const firebaseUrl = window.FirebaseConfig?.getActiveConfig?.()?.databaseURL;
+      console.log('🔗 Widget Firebase URL:', firebaseUrl);
+
+      // Debug: Firebase URL'sini localStorage'a yaz
+      localStorage.setItem('widgetFirebaseUrl', firebaseUrl);
+      console.log('🔗 Widget Firebase URL localStorage\'a yazıldı:', firebaseUrl);
+
+      if (firebaseUrl) {
+        connectWidgetFirebaseWithUrl(firebaseUrl);
+
+        // Display'da göster
+        const displayElement = document.getElementById('firebaseUrlDisplay');
+        if (displayElement) {
+          displayElement.textContent = firebaseUrl;
+        }
+      } else {
+        console.error('❌ Firebase URL bulunamadı! Config dosyası yüklenmemiş olabilir.');
+
+        // Display'da hata göster
+        const displayElement = document.getElementById('firebaseUrlDisplay');
+        if (displayElement) {
+          displayElement.textContent = '❌ Config bulunamadı';
+          displayElement.style.color = '#dc3545';
+        }
+      }
+    });
+
+    // ============ WIDGET REPLY ÖZELLİĞİ FONKSİYONLARI ============
+
+    /**
+     * Widget'ta yanıtlanacak mesajı ayarla
+     */
+    function setWidgetReplyTo(messageId, message, sender) {
+      widgetReplyingTo = { messageId, message, sender };
+
+      // Preview'ı güncelle ve göster
+      const preview = document.getElementById('widgetReplyPreview');
+      const senderEl = document.getElementById('widgetReplySender');
+      const textEl = document.getElementById('widgetReplyText');
+
+      senderEl.textContent = sender === 'user' ? '👤 Kendinize yanıt' : '🤖 Bot yanıtı';
+      textEl.textContent = (message || '').slice(0, 40) + ((message || '').length > 40 ? '...' : '');
+      preview.classList.add('show');
+
+      // Input'a focus ver
+      document.getElementById('widgetInput').focus();
+
+      // Context menu'yü kapat
+      hideWidgetMsgContextMenu();
+    }
+
+    /**
+     * Widget yanıt preview'ını temizle
+     */
+    function clearWidgetReplyTo() {
+      widgetReplyingTo = null;
+      const preview = document.getElementById('widgetReplyPreview');
+      if (preview) preview.classList.remove('show');
+    }
+
+    /**
+     * Widget mesaj sağ tık menüsünü göster
+     */
+    function showWidgetMsgContextMenu(event, messageId, message, sender) {
+      event.preventDefault();
+
+      // Mevcut context menu varsa kaldır
+      let menu = document.getElementById('widgetMsgContextMenu');
+      if (!menu) {
+        // Context menu oluştur
+        menu = document.createElement('div');
+        menu.id = 'widgetMsgContextMenu';
+        menu.className = 'widget-msg-context-menu';
+        menu.innerHTML = `
+          <div class="widget-msg-context-menu-item" onclick="replyFromWidgetContextMenu()">
+            <span>↩️</span> Yanıtla
+          </div>
+        `;
+        document.body.appendChild(menu);
+      }
+
+      // Hedef mesajı kaydet
+      widgetMsgContextMenuTarget = { messageId, message, sender };
+
+      // Konumu ayarla ve göster
+      menu.style.left = event.clientX + 'px';
+      menu.style.top = event.clientY + 'px';
+      menu.classList.add('show');
+
+      // Dışarı tıklayınca kapat
+      setTimeout(() => {
+        document.addEventListener('click', hideWidgetMsgContextMenuOnClick, { once: true });
+      }, 10);
+    }
+
+    function hideWidgetMsgContextMenuOnClick(e) {
+      const menu = document.getElementById('widgetMsgContextMenu');
+      if (menu && !menu.contains(e.target)) {
+        hideWidgetMsgContextMenu();
+      }
+    }
+
+    function hideWidgetMsgContextMenu() {
+      const menu = document.getElementById('widgetMsgContextMenu');
+      if (menu) {
+        menu.classList.remove('show');
+      }
+    }
+
+    function replyFromWidgetContextMenu() {
+      if (widgetMsgContextMenuTarget) {
+        setWidgetReplyTo(widgetMsgContextMenuTarget.messageId, widgetMsgContextMenuTarget.message, widgetMsgContextMenuTarget.sender);
+      }
+      hideWidgetMsgContextMenu();
+    }
+
+    /**
+     * Widget'ta belirli bir mesaja scroll et
+     */
+    function scrollToWidgetMessage(messageId) {
+      const msgEl = document.querySelector(`#widgetMessages [data-msg-id="${messageId}"]`);
+      if (msgEl) {
+        msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Kısa bir highlight efekti
+        const bubble = msgEl.querySelector('.bubble');
+        if (bubble) {
+          bubble.style.transition = 'box-shadow 0.3s';
+          bubble.style.boxShadow = '0 0 15px rgba(102, 126, 234, 0.5)';
+          setTimeout(() => {
+            bubble.style.boxShadow = '';
+          }, 1500);
+        }
+      }
+    }
+  </script>
+</body>
+
+</html>
