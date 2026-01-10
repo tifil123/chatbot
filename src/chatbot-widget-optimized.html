@@ -742,6 +742,12 @@
       }
     }
 
+    // URL'leri tıklanabilir linklere dönüştür
+    function linkify(text) {
+      const urlPattern = /(https?:\/\/[^\s<]+)/g;
+      return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#667eea;text-decoration:underline">$1</a>');
+    }
+
     function addWidgetMessage(text, isUser, msgId = null, replyTo = null) {
       const container = document.getElementById('widgetMessages');
       const div = document.createElement('div');
@@ -751,7 +757,7 @@
       div.setAttribute('data-msg-sender', isUser ? 'user' : 'bot');
 
       const time = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-      const formattedText = (text || '').replace(/\n/g, '<br>');
+      const formattedText = linkify((text || '').replace(/\n/g, '<br>'));
 
       // Reply reference oluştur
       let replyRefHtml = '';

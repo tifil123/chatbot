@@ -124,6 +124,43 @@
       flex: 1
     }
 
+    .user-item.pinned {
+      border-left: 4px solid #f59e0b;
+      background: #1e1b2e
+    }
+
+    .pin-session-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 4px 6px;
+      opacity: 0.5;
+      transition: opacity 0.2s
+    }
+
+    .user-item:hover .pin-session-btn {
+      opacity: 1
+    }
+
+    .user-item.pinned .pin-session-btn {
+      opacity: 1
+    }
+
+    .delete-session-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 4px 6px;
+      opacity: 0.5;
+      transition: opacity 0.2s
+    }
+
+    .user-item:hover .delete-session-btn {
+      opacity: 1
+    }
+
     .context-menu {
       position: fixed;
       background: #1e1e2e;
@@ -1172,8 +1209,14 @@
   </div>
 
   <div class="context-menu" id="contextMenu">
+    <div class="context-menu-item" onclick="pinFromContextMenu()">
+      <span>📌</span> <span id="pinMenuLabel">Sabitle</span>
+    </div>
     <div class="context-menu-item" onclick="editFromContextMenu()">
       <span>✏️</span> İsmi Düzenle
+    </div>
+    <div class="context-menu-item danger" onclick="deleteFromContextMenu()">
+      <span>🗑️</span> Sohbeti Sil
     </div>
   </div>
 
@@ -1216,8 +1259,8 @@
   <!-- UUID Kütüphanesi -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuidv4.min.js"></script>
   <!-- Firebase Service Katmanları -->
-  <script src="config/firebase-config.js"></script>
-  <script src="services/firebase-service.js"></script>
+  <script src="../config/firebase-config.js"></script>
+  <script src="../services/firebase-service.js"></script>
 
   <script>
     let db = null;
@@ -1467,8 +1510,15 @@
         console.log(`🔍 DEBUG: lastMsg.message tipi:`, typeof lastMsg?.message);
 
         const needsAttention = data.info?.needsAttention || false;
-        return { id, last, lastMsg, needsAttention };
-      }).sort((a, b) => b.last - a.last);
+        const pinned = data.info?.pinned || false;  // Sabitleme bilgisi
+        return { id, last, lastMsg, needsAttention, pinned };
+      }).sort((a, b) => {
+        // Önce sabitlenmiş sohbetler
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        // Sonra zamana göre
+        return b.last - a.last;
+      });
 
       const el = document.getElementById('userList');
       console.log('🔍 Kullanıcı listesi elementi:', el);
@@ -1532,9 +1582,9 @@
         const safePreview = escapeHtml(previewText);
 
         return `
-      <div class="user-item ${u.id === selectedUser ? 'active' : ''} ${u.needsAttention ? 'needs-attention' : ''}" data-session-id="${safeId}" data-original-type="${u.id === null ? 'null' : 'string'}" data-index="${index}">
+      <div class="user-item ${u.id === selectedUser ? 'active' : ''} ${u.needsAttention ? 'needs-attention' : ''} ${u.pinned ? 'pinned' : ''}" data-session-id="${safeId}" data-original-type="${u.id === null ? 'null' : 'string'}" data-index="${index}">
         <div class="user-info">
-          <div class="name">🐰 ${safeName}</div>
+          <div class="name">${u.pinned ? '📌' : '🐰'} ${safeName}</div>
           <div class="phone" style="font-size:0.75rem;color:#64748b;margin-bottom:2px;cursor:text;user-select:text">${safePhone}</div>
           <div class="preview">${safePreview}</div>
         </div>
@@ -1672,6 +1722,12 @@
         `;
       }
 
+      // URL'leri tıklanabilir linklere dönüştür
+      function linkify(text) {
+        const urlPattern = /(https?:\/\/[^\s<]+)/g;
+        return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#a5b4fc;text-decoration:underline">$1</a>');
+      }
+
       // WhatsApp tarzı: messages-inner wrapper ile alta hizalama
       el.innerHTML = `<div class="messages-inner">` + msgs.map(m => `
     <div class="msg ${m.sender} ${m.learned ? 'learned' : ''}" 
@@ -1680,7 +1736,7 @@
          data-msg-sender="${m.sender}"
          oncontextmenu="showMsgContextMenu(event, '${m.id}', '${(m.message || '').replace(/'/g, "\\'")}', '${m.sender}')">
       ${renderReplyRef(m.replyTo)}
-      ${(m.message || '').replace(/\n/g, '<br>')}
+      ${linkify((m.message || '').replace(/\n/g, '<br>'))}
       <div class="time">${formatTimestamp(m.timestamp)}${m.learned ? ' 🧠' : ''}${m.fromAdmin ? ' 👤' : ''}</div>
     </div>
   `).join('') + `</div>`;
@@ -1728,6 +1784,12 @@
       }
       const safeSessionId = sanitizeSessionId(selectedUser);
       firebaseService.ref('sessions/' + safeSessionId + '/control/mode').set('manual');
+
+      // Badge'i güncelle
+      const badge = document.getElementById('modeBadge');
+      badge.className = 'mode-badge mode-manual';
+      badge.textContent = '👤 Manuel';
+
       toast('Manuel kontrolü aldınız!', 'success');
     }
 
@@ -1735,7 +1797,24 @@
       if (!selectedUser || !db) return;
       const safeSessionId = sanitizeSessionId(selectedUser);
       firebaseService.ref('sessions/' + safeSessionId + '/control/mode').set('auto');
+
+      // Badge'i güncelle
+      const badge = document.getElementById('modeBadge');
+      badge.className = 'mode-badge mode-auto';
+      badge.textContent = '🤖 Otomatik';
+
       toast('Bota geri verildi!', 'success');
+    }
+
+    // Sohbet sabitleme toggle fonksiyonu
+    function togglePin(sessionId) {
+      if (sessionId === '__NULL_SESSION__') return;
+
+      const currentPinned = sessions[sessionId]?.info?.pinned || false;
+      const newPinned = !currentPinned;
+
+      firebaseService.ref('sessions/' + sessionId + '/info/pinned').set(newPinned);
+      toast(newPinned ? '📌 Sohbet sabitlendi!' : '📍 Sabitleme kaldırıldı!', 'success');
     }
 
     function sendManualReply() {
@@ -1767,6 +1846,9 @@
       }
 
       firebaseService.ref('sessions/' + selectedUser + '/messages').push(msgData);
+
+      // needsAttention flag'ini temizle - ünlem işareti kaybolsun
+      firebaseService.ref('sessions/' + selectedUser + '/info/needsAttention').set(false);
 
       // Kullanıcının son sorusunu bul
       const userMsgs = Object.values(sessions[selectedUser].messages || {}).filter(m => m.sender === 'user').sort((a, b) => b.timestamp - a.timestamp);
@@ -1890,26 +1972,18 @@
       console.log('🔧 showContextMenu çağrıldı:', { sessionId, index });
       event.preventDefault();
 
-      // Mevcut context menu varsa kaldır
-      let menu = document.getElementById('userContextMenu');
-      if (!menu) {
-        // Context menu oluştur
-        menu = document.createElement('div');
-        menu.id = 'userContextMenu';
-        menu.className = 'user-context-menu';
-        menu.innerHTML = `
-          <div class="user-context-menu-item" onclick="editUserFromContextMenu()">
-            <span>✏️</span> İsim Düzenle
-          </div>
-          <div class="user-context-menu-item delete" onclick="deleteSessionFromContextMenu()">
-            <span>🗑️</span> Sohbeti Sil
-          </div>
-        `;
-        document.body.appendChild(menu);
-      }
-
       // Hedef session'ı kaydet
       userContextMenuTarget = { sessionId, index };
+
+      // Statik HTML menu'yü kullan
+      const menu = document.getElementById('contextMenu');
+
+      // Pin label'ını güncelle
+      const isPinned = sessions[sessionId]?.info?.pinned || false;
+      const pinLabel = document.getElementById('pinMenuLabel');
+      if (pinLabel) {
+        pinLabel.textContent = isPinned ? 'Sabitlemeyi Kaldır' : 'Sabitle';
+      }
 
       // Konumu ayarla ve göster
       menu.style.left = event.clientX + 'px';
@@ -1923,17 +1997,58 @@
     }
 
     function hideUserContextMenuOnClick(e) {
-      const menu = document.getElementById('userContextMenu');
+      const menu = document.getElementById('contextMenu');
       if (menu && !menu.contains(e.target)) {
-        hideUserContextMenu();
+        hideContextMenu();
       }
     }
 
-    function hideUserContextMenu() {
-      const menu = document.getElementById('userContextMenu');
+    function hideContextMenu() {
+      const menu = document.getElementById('contextMenu');
       if (menu) {
         menu.style.display = 'none';
       }
+    }
+
+    // Sağ tık menüsünden sabitleme
+    function pinFromContextMenu() {
+      if (userContextMenuTarget && userContextMenuTarget.sessionId) {
+        const sessionId = userContextMenuTarget.sessionId;
+        if (sessionId !== '__NULL_SESSION__') {
+          togglePin(sessionId);
+        }
+      }
+      hideContextMenu();
+    }
+
+    // Sağ tık menüsünden silme
+    function deleteFromContextMenu() {
+      if (userContextMenuTarget && userContextMenuTarget.sessionId) {
+        deleteSession(userContextMenuTarget.sessionId);
+      }
+      hideContextMenu();
+    }
+
+    // Sağ tık menüsünden isim düzenleme
+    function editFromContextMenu() {
+      if (userContextMenuTarget) {
+        document.getElementById('editIndex').value = userContextMenuTarget.index;
+        const userData = sessions[userContextMenuTarget.sessionId];
+        document.getElementById('newUserName').value = userData?.info?.customName || '';
+        document.getElementById('newUserPhone').value = userData?.info?.phoneNumber || '';
+        document.getElementById('editNameModal').classList.add('show');
+      }
+      hideContextMenu();
+    }
+
+    function togglePinFromContextMenu() {
+      if (userContextMenuTarget && userContextMenuTarget.sessionId) {
+        const sessionId = userContextMenuTarget.sessionId;
+        if (sessionId !== '__NULL_SESSION__') {
+          togglePin(sessionId);
+        }
+      }
+      hideUserContextMenu();
     }
 
     function editUserFromContextMenu() {
@@ -2157,7 +2272,10 @@
       selectedUser = sanitizeSessionId(sessionId);
       selectUser(selectedUser);
       takeover();
-      dismissPending(qId);
+
+      // Popup olmadan doğrudan soruyu sil
+      if (db) firebaseService.ref('pending_questions/' + qId).remove();
+
       switchTab('config');
       document.getElementById('replyInput').focus();
       toast('Manuel kontrolü aldınız! Yanıt yazabilirsiniz.', 'success');
