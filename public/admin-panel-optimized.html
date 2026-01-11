@@ -2567,46 +2567,6 @@
       }
     });
 
-    // Sağ tık menüsü fonksiyonları
-    let contextMenuUserId = null;
-    let contextMenuIndex = null;
-
-    function showContextMenu(event, userId, index) {
-      event.preventDefault();
-      contextMenuUserId = userId;
-      contextMenuIndex = index;
-
-      const menu = document.getElementById('contextMenu');
-      menu.style.left = event.pageX + 'px';
-      menu.style.top = event.pageY + 'px';
-      menu.classList.add('show');
-    }
-
-    function hideContextMenu() {
-      document.getElementById('contextMenu').classList.remove('show');
-    }
-
-    function editFromContextMenu() {
-      if (contextMenuUserId !== null && contextMenuIndex !== null) {
-        editUserName(contextMenuUserId, contextMenuIndex);
-      }
-      hideContextMenu();
-    }
-
-
-    // Sayfa herhangi bir yerine tıklandığında menüyü kapat
-    document.addEventListener('click', function (event) {
-      if (!event.target.closest('#contextMenu')) {
-        hideContextMenu();
-      }
-    });
-
-    document.addEventListener('contextmenu', function (event) {
-      if (!event.target.closest('.user-item')) {
-        hideContextMenu();
-      }
-    });
-
     // Öğrenilen yanıtı düzenleme fonksiyonları
     let editingLearnedId = null;
 
