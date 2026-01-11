@@ -296,7 +296,9 @@
       border-radius: 12px;
       font-size: 0.85rem;
       line-height: 1.5;
-      white-space: pre-line
+      white-space: pre-line;
+      user-select: text;
+      cursor: text
     }
 
     .msg.user {
@@ -1263,6 +1265,27 @@
   <script src="../services/firebase-service.js"></script>
 
   <script>
+    // 🚀 PERFORMANS: Debug modunu kapat - production için false yap
+    const DEBUG_MODE = false;
+
+    // Debug log fonksiyonu - DEBUG_MODE false ise hiçbir şey yapmaz
+    function debugLog(...args) {
+      if (DEBUG_MODE) console.log(...args);
+    }
+
+    // 🚀 PERFORMANS: Debounce fonksiyonu - sık tetiklenen işlemleri optimize eder
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
     let db = null;
     let sessions = {};
     let pendingQuestions = {};
@@ -1273,6 +1296,10 @@
     // Reply özelliği için global değişkenler
     let replyingTo = null;  // {messageId, message, sender}
     let msgContextMenuTarget = null;  // Sağ tıklanan mesaj bilgisi
+
+    // 🚀 PERFORMANS: Debounced render fonksiyonları (150ms gecikmeli)
+    const debouncedRenderUsers = debounce(() => renderUsers(), 150);
+    const debouncedShowMessages = debounce((userId) => showMessages(userId), 100);
 
     // 🔧 GLOBAL CONTEXTMENU LISTENER - Sohbet listesi için
     // Sayfa yüklendiğinde bir kez eklenir
@@ -1425,44 +1452,30 @@
 
           sessions = {};
           s.forEach(c => {
-            console.log('📝 Session ID:', c.key);
-            console.log('📝 Session verisi:', c.val());
             sessions[c.key] = c.val();
           });
 
-          console.log('🔍 renderUsers çağrılacak - session sayısı:', Object.keys(sessions).length);
-          renderUsers();
-          console.log('🔍 renderUsers çağrıldı');
+          // Debounce ile render - kasma önlenir
+          debouncedRenderUsers();
           updateStats();
-          if (selectedUser) showMessages(selectedUser);
+          if (selectedUser) debouncedShowMessages(selectedUser);
         });
 
         // Pending questions
         firebaseService.subscribe('pending_questions', s => {
-          console.log('🔍 DEBUG: Pending questions callback tetiklendi!');
-          console.log('🔍 DEBUG: Gelen snapshot:', s);
-          console.log('🔍 DEBUG: Snapshot numChildren:', s.numChildren());
-
           pendingQuestions = {};
           s.forEach(c => {
-            console.log('🔍 DEBUG: Processing pending question:', c.key, c.val());
             pendingQuestions[c.key] = c.val();
           });
 
-          // 🔍 DEBUG: Pending questions detaylı incele
-          console.log('🔍 DEBUG: Pending questions objesi:', pendingQuestions);
-          console.log('🔍 DEBUG: Pending questions sayısı:', Object.keys(pendingQuestions).length);
-
-          // 🔧 DÜZELTME: Sadece status='pending' olan soruları say
+          // Sadece status='pending' olan soruları say
           const pendingCount = Object.entries(pendingQuestions).filter(([k, v]) => v.status === 'pending').length;
-          console.log('🔍 DEBUG: Hesaplanan pendingCount:', pendingCount);
 
           document.getElementById('pendingCount').textContent = pendingCount;
           document.getElementById('pendingQCount').textContent = pendingCount;
           document.getElementById('pendingNotif').textContent = pendingCount;
           document.getElementById('pendingNotif').classList.toggle('show', pendingCount > 0);
 
-          console.log('🔍 DEBUG: UI elements güncellendi');
           renderPending();
         });
 
@@ -1493,21 +1506,12 @@
     }
 
     function renderUsers() {
-      console.log('🔍 renderUsers fonksiyonu çağrıldı!');
-      console.log('🔍 renderUsers çağrılıyor...');
-      console.log('📊 Mevcut sessions sayısı:', Object.keys(sessions).length);
-      console.log('📊 Sessions objesi:', sessions);
+      // Debug logları kaldırıldı - performans için
 
       const list = Object.entries(sessions).map(([id, data]) => {
         const msgs = Object.values(data.messages || {});
         const last = msgs.length ? Math.max(...msgs.map(m => m.timestamp)) : 0;
         const lastMsg = msgs.sort((a, b) => b.timestamp - a.timestamp)[0];
-
-        // 🔍 DEBUG: lastMsg objesini detaylı incele
-        console.log(`🔍 DEBUG: User ${id} lastMsg:`, lastMsg);
-        console.log(`🔍 DEBUG: lastMsg tipi:`, typeof lastMsg);
-        console.log(`🔍 DEBUG: lastMsg.message:`, lastMsg?.message);
-        console.log(`🔍 DEBUG: lastMsg.message tipi:`, typeof lastMsg?.message);
 
         const needsAttention = data.info?.needsAttention || false;
         const pinned = data.info?.pinned || false;  // Sabitleme bilgisi
@@ -1521,11 +1525,8 @@
       });
 
       const el = document.getElementById('userList');
-      console.log('🔍 Kullanıcı listesi elementi:', el);
-      console.log('🔍 Render edilecek kullanıcı sayısı:', list.length);
 
       if (!list.length) {
-        console.log('🔍 Kullanıcı yok, empty mesajı gösteriliyor');
         el.innerHTML = '<div class="empty"><div class="icon">👥</div>Henüz konuşma yok</div>';
         return;
       }
