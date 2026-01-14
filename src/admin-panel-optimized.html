@@ -1261,8 +1261,8 @@
   <!-- UUID Kütüphanesi -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuidv4.min.js"></script>
   <!-- Firebase Service Katmanları -->
-  <script src="../config/firebase-config.js"></script>
-  <script src="../services/firebase-service.js"></script>
+  <script src="../public/config/firebase-config.js"></script>
+  <script src="../public/services/firebase-service.js"></script>
 
   <script>
     // 🚀 PERFORMANS: Debug modunu kapat - production için false yap
@@ -1422,6 +1422,7 @@
     }
 
     window.onload = () => {
+      setupUserListEventListeners(); // Event listener'ları bir kez kur
       connectFirebase();
     };
 
@@ -1594,10 +1595,28 @@
     `;
       }).join('');
 
+      // Event listener'lar artık burada eklenmeyecek - setupUserListEventListeners() kullanılacak
+
+      console.log('✅ renderUsers tamamlandı');
+      console.log('🔍 Oluşturulan HTML length:', el.innerHTML.length);
+      console.log('🔍 userList elementinin child count:', el.children.length);
+    }
+
+    // 🚀 PERFORMANS: Event listener'ları sayfa yüklendiğinde BİR KEZ ekle
+    let userListListenersAttached = false;
+    function setupUserListEventListeners() {
+      if (userListListenersAttached) return; // Zaten eklendi, tekrar ekleme
+
+      const el = document.getElementById('userList');
+      if (!el) return;
+
       // 🔧 EVENT DELEGATION: Click olayları için parent listener
       el.addEventListener('click', function (e) {
         const item = e.target.closest('.user-item');
         if (!item) return;
+
+        // Delete button'a tıklandıysa işleme
+        if (e.target.closest('.delete-session-btn')) return;
 
         let sessionId = item.getAttribute('data-session-id');
         const originalType = item.getAttribute('data-original-type');
@@ -1614,7 +1633,8 @@
         const item = e.target.closest('.user-item');
         if (!item) return;
 
-        console.log('🔧 contextmenu event tetiklendi (parent delegation)!');
+        e.preventDefault();
+        console.log('🔧 contextmenu event tetiklendi!');
 
         let sessionId = item.getAttribute('data-session-id');
         const originalType = item.getAttribute('data-original-type');
@@ -1627,10 +1647,8 @@
         showContextMenu(e, sessionId, index);
       });
 
-      console.log('✅ renderUsers tamamlandı');
-      console.log('🔍 Oluşturulan HTML length:', el.innerHTML.length);
-      console.log('🔍 userList elementinin child count:', el.children.length);
-      console.log('🔧 Event listener eklenen user-item sayısı:', el.querySelectorAll('.user-item').length);
+      userListListenersAttached = true;
+      console.log('✅ UserList event listeners kuruldu (bir kez)');
     }
 
     function selectUser(id) {
