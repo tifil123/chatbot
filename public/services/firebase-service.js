@@ -10,12 +10,22 @@ if (typeof firebase === 'undefined') {
   script.src = 'https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-app-compat.min.js';
   script.onload = () => {
     console.log('✅ Firebase App SDK yüklendi');
-    const databaseScript = document.createElement('script');
-    databaseScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-database-compat.min.js';
-    databaseScript.onload = () => {
-      console.log('✅ Firebase Database SDK yüklendi');
+
+    // Auth SDK yükle
+    const authScript = document.createElement('script');
+    authScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-auth-compat.min.js';
+    authScript.onload = () => {
+      console.log('✅ Firebase Auth SDK yüklendi');
+
+      // Database SDK yükle
+      const databaseScript = document.createElement('script');
+      databaseScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.0/firebase-database-compat.min.js';
+      databaseScript.onload = () => {
+        console.log('✅ Firebase Database SDK yüklendi');
+      };
+      document.head.appendChild(databaseScript);
     };
-    document.head.appendChild(databaseScript);
+    document.head.appendChild(authScript);
   };
   document.head.appendChild(script);
 } else {
@@ -30,6 +40,7 @@ class FirebaseService {
     this.retryCount = 0;
     this.maxRetries = 3;
     this.listeners = new Map();
+    this.currentUser = null;
   }
 
   /**
@@ -45,7 +56,7 @@ class FirebaseService {
     try {
       // Konfigürasyonu al
       this.config = config || window.FirebaseConfig?.getActiveConfig?.();
-      
+
       if (!this.config || !this.config.databaseURL) {
         throw new Error('Firebase konfigürasyonu bulunamadı! Lütfen config/firebase-config.js dosyasını kontrol edin.');
       }
@@ -59,23 +70,23 @@ class FirebaseService {
         } else {
           console.log('🔄 Mevcut Firebase uygulaması kullanılıyor');
           console.log('🔥 Firebase apps count (mevcut):', firebase.apps.length);
-          
+
           // Mevcut uygulamanın config'ini kontrol et
           const currentApp = firebase.app();
           const currentURL = currentApp.options.databaseURL;
           const newURL = this.config.databaseURL;
-          
+
           if (currentURL !== newURL) {
             console.warn('⚠️ Farklı Firebase URL tespit edildi:');
             console.warn('📱 Mevcut URL:', currentURL);
             console.warn('🆕 Yeni URL:', newURL);
             console.warn('❌ Bu durum veri çakışmasına neden olabilir!');
-            
+
             // Farklı URL ise mevcut uygulamayı sonlandır ve yeniden başlat
             console.log('🔄 Farklı URL tespit edildi, mevcut uygulama sonlandırılıyor...');
             await firebase.app().delete();
             console.log('🗑️ Mevcut uygulama sonlandırıldı');
-            
+
             // Yeni uygulama başlat
             firebase.initializeApp(this.config);
             console.log('🆕 Yeni Firebase uygulaması oluşturuldu:', this.config.databaseURL);
@@ -84,14 +95,14 @@ class FirebaseService {
         }
       } catch (error) {
         console.error('❌ Firebase başlatma hatası:', error);
-        
+
         // Hata durumunda mevcut uygulamaları temizle ve yeniden dene
         try {
           if (firebase.apps.length > 0) {
             console.log('🔄 Hata durumunda mevcut uygulamalar temizleniyor...');
             await firebase.app().delete();
           }
-          
+
           // Yeniden başlatmayı dene
           firebase.initializeApp(this.config);
           console.log('🆕 Firebase yeniden başlatıldı:', this.config.databaseURL);
@@ -105,6 +116,13 @@ class FirebaseService {
       this.isConnected = true;
       this.retryCount = 0;
 
+      // Anonim giriş yap (başarısız olursa bile devam et)
+      try {
+        await this.signInAnonymously();
+      } catch (authError) {
+        console.warn('⚠️ Auth başarısız oldu, database bağlantısı devam ediyor:', authError.message);
+      }
+
       // Gerçek zamanlı bağlantı durumunu dinle
       this.setupConnectionMonitoring();
 
@@ -113,7 +131,7 @@ class FirebaseService {
 
     } catch (error) {
       console.error('Firebase connection error:', error);
-      
+
       // Retry mekanizması
       if (this.retryCount < this.maxRetries) {
         this.retryCount++;
@@ -124,6 +142,51 @@ class FirebaseService {
 
       throw new Error(`Firebase connection failed after ${this.maxRetries} attempts: ${error.message}`);
     }
+  }
+
+  /**
+   * Anonim giriş yap
+   * @returns {Promise<Object>} User credential
+   */
+  async signInAnonymously() {
+    try {
+      // Zaten giriş yapılmış mı kontrol et
+      if (firebase.auth().currentUser) {
+        this.currentUser = firebase.auth().currentUser;
+        console.log('✅ Mevcut anonim kullanıcı:', this.currentUser.uid);
+        return this.currentUser;
+      }
+
+      // Anonim giriş yap
+      const userCredential = await firebase.auth().signInAnonymously();
+      this.currentUser = userCredential.user;
+      console.log('✅ Anonim giriş başarılı:', this.currentUser.uid);
+
+      // Auth state değişikliklerini dinle
+      firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+          this.currentUser = user;
+          console.log('🔄 Auth state değişti - kullanıcı:', user.uid);
+        } else {
+          this.currentUser = null;
+          console.log('🔄 Auth state değişti - kullanıcı çıkış yaptı');
+        }
+      });
+
+      return this.currentUser;
+    } catch (error) {
+      console.error('❌ Anonim giriş hatası:', error);
+      // Hata olsa bile devam et, bazı işlemler çalışabilir
+      return null;
+    }
+  }
+
+  /**
+   * Mevcut kullanıcıyı al
+   * @returns {Object|null} Current user
+   */
+  getCurrentUser() {
+    return this.currentUser || firebase.auth()?.currentUser || null;
   }
 
   /**
@@ -172,7 +235,7 @@ class FirebaseService {
       console.log('🔥 Firebase write çağrıldı - path:', path);
       console.log('🔥 Firebase write çağrıldı - data:', data);
       console.log('🔥 Firebase write çağrıldı - ref:', this.ref(path));
-      
+
       const result = await this.ref(path).set(data);
       console.log('✅ Firebase write başarılı - path:', path);
       return result;
@@ -193,7 +256,7 @@ class FirebaseService {
       console.log('🔥 Firebase push çağrıldı - path:', path);
       console.log('🔥 Firebase push çağrıldı - data:', data);
       console.log('🔥 Firebase push çağrıldı - ref:', this.ref(path));
-      
+
       const result = await this.ref(path).push(data);
       console.log('✅ Firebase push başarılı - path:', path);
       console.log('✅ Yeni kayıt ID:', result.key);
@@ -243,7 +306,7 @@ class FirebaseService {
   subscribe(path, callback, eventType = 'value') {
     try {
       console.log(`🔗 Firebase listener kuruluyor: ${path} (${eventType})`);
-      
+
       const listener = this.ref(path).on(eventType, (snapshot) => {
         console.log(`🔥 Firebase tetiklendi: ${path} (${eventType})`);
         console.log(`🔥 Snapshot:`, snapshot);
@@ -251,13 +314,13 @@ class FirebaseService {
         console.log(`🔥 Snapshot numChildren():`, snapshot.numChildren());
         callback(snapshot);
       });
-      
+
       // Listener'ı kaydet
       const listenerKey = `${path}_${eventType}`;
       this.listeners.set(listenerKey, { path, callback, eventType, listener });
-      
+
       console.log(`✅ Firebase listener kuruldu: ${listenerKey}`);
-      
+
       // Unsubscribe fonksiyonu döndür
       return () => {
         this.ref(path).off(eventType, callback);
@@ -293,12 +356,12 @@ class FirebaseService {
    */
   setupConnectionMonitoring() {
     if (!this.db) return;
-    
+
     const connectedRef = this.db.ref('.info/connected');
     connectedRef.on('value', (snapshot) => {
       const connected = snapshot.val();
       this.isConnected = connected;
-      
+
       if (connected) {
         console.log('🟢 Firebase bağlantısı aktif');
       } else {
@@ -335,13 +398,13 @@ class FirebaseService {
     if (typeof uuidv4 !== 'undefined') {
       return 'session_' + uuidv4();
     }
-    
+
     // Fallback: 3 katmanlı güvenlikli ID
     const timestamp = Date.now();
     const random1 = Math.random().toString(36).substring(2, 15); // 13 karakter
     const random2 = Math.random().toString(36).substring(2, 15); // 13 karakter
     const random3 = Math.random().toString(36).substring(2, 10); // 8 karakter
-    
+
     return 'session_' + timestamp + '_' + random1 + '_' + random2 + '_' + random3;
   }
 
@@ -353,10 +416,10 @@ class FirebaseService {
     let sessionId;
     let attempts = 0;
     const maxAttempts = 10;
-    
+
     while (attempts < maxAttempts) {
       sessionId = this.generateSessionId();
-      
+
       try {
         // Firebase'de bu ID var mı kontrol et
         const exists = await this.read('sessions/' + sessionId);
@@ -364,10 +427,10 @@ class FirebaseService {
           console.log('✅ Benzersiz session ID oluşturuldu:', sessionId);
           return sessionId;
         }
-        
+
         console.warn(`⚠️ Session ID çakışması tespit edildi: ${sessionId}, yeniden deneniyor...`);
         attempts++;
-        
+
         // Çakışma olursa biraz bekle ve tekrar dene
         await this.delay(100);
       } catch (error) {
@@ -376,7 +439,7 @@ class FirebaseService {
         return sessionId;
       }
     }
-    
+
     // Maksimum deneme sayısına ulaşıldı, son ID'yi kullan
     console.warn('⚠️ Maksimum deneme sayısına ulaşıldı, son ID kullanılıyor:', sessionId);
     return sessionId;
@@ -389,7 +452,7 @@ class FirebaseService {
    */
   handleError(error, context = 'Unknown') {
     console.error(`Firebase Service Error [${context}]:`, error);
-    
+
     // Hata loglama (isteğe bağlı)
     if (window.uiService) {
       window.uiService.showToast(`Firebase hatası: ${error.message}`, 'error');

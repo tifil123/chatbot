@@ -121,7 +121,12 @@
     }
 
     .user-info {
-      flex: 1
+      flex: 1;
+      cursor: pointer
+    }
+
+    .user-info * {
+      cursor: pointer
     }
 
     .user-item.pinned {
@@ -211,12 +216,16 @@
     .user-item .name {
       font-weight: 600;
       font-size: 0.85rem;
-      margin-bottom: 4px
+      margin-bottom: 4px;
+      cursor: pointer;
+      user-select: none
     }
 
     .user-item .preview {
       font-size: 0.75rem;
-      color: #94a3b8
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none
     }
 
     .status-bar {
@@ -1587,7 +1596,7 @@
       <div class="user-item ${u.id === selectedUser ? 'active' : ''} ${u.needsAttention ? 'needs-attention' : ''} ${u.pinned ? 'pinned' : ''}" data-session-id="${safeId}" data-original-type="${u.id === null ? 'null' : 'string'}" data-index="${index}">
         <div class="user-info">
           <div class="name">${u.pinned ? '📌' : '🐰'} ${safeName}</div>
-          <div class="phone" style="font-size:0.75rem;color:#64748b;margin-bottom:2px;cursor:text;user-select:text">${safePhone}</div>
+          <div class="phone" style="font-size:0.75rem;color:#64748b;margin-bottom:2px;cursor:pointer;user-select:none">${safePhone}</div>
           <div class="preview">${safePreview}</div>
         </div>
         <button class="delete-session-btn" onclick="event.stopPropagation(); deleteSession('${safeId}')" title="Sohbeti Sil">🗑️</button>

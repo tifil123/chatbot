@@ -4,6 +4,9 @@
  */
 
 const FIREBASE_CONFIG = {
+  // API Key (Authentication için gerekli)
+  apiKey: 'AIzaSyAC06ihCO4hKOamqM7caxXGQmuGR_QF1dk',
+
   // Production URL
   databaseURL: 'https://chatbotdb-be1f7-default-rtdb.europe-west1.firebasedatabase.app',
 
