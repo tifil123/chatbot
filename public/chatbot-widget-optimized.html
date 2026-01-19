@@ -670,18 +670,19 @@
 
         console.log('🔥 Firebase apps count (sonra):', firebase.apps.length);
 
-        widgetSessionId = sessionStorage.getItem('widget_session_id');
+        // localStorage kullanarak session'ı kalıcı yap (sekme kapansa bile devam etsin)
+        widgetSessionId = localStorage.getItem('widget_session_id');
         if (!widgetSessionId) {
           // Güçlü ve benzersiz session ID oluştur - await ile bekle
           try {
             widgetSessionId = await firebaseService.createUniqueSessionId();
-            sessionStorage.setItem('widget_session_id', widgetSessionId);
+            localStorage.setItem('widget_session_id', widgetSessionId);
             console.log('🆕 Güçlü session oluşturuldu:', widgetSessionId);
           } catch (error) {
             console.error('❌ Session oluşturma hatası:', error);
             // Fallback: basit ID oluştur
             widgetSessionId = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
-            sessionStorage.setItem('widget_session_id', widgetSessionId);
+            localStorage.setItem('widget_session_id', widgetSessionId);
           }
         }
 
