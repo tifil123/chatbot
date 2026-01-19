@@ -100,6 +100,26 @@
       align-items: center
     }
 
+    .user-item .unread-badge {
+      background: #ef4444;
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: bold;
+      min-width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      margin-left: 8px;
+      flex-shrink: 0
+    }
+
+    .user-item .unread-badge.hidden {
+      display: none
+    }
+
     .user-item:hover {
       background: #1e1e2e
     }
@@ -149,20 +169,6 @@
     }
 
     .user-item.pinned .pin-session-btn {
-      opacity: 1
-    }
-
-    .delete-session-btn {
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      font-size: 0.9rem;
-      padding: 4px 6px;
-      opacity: 0.5;
-      transition: opacity 0.2s
-    }
-
-    .user-item:hover .delete-session-btn {
       opacity: 1
     }
 
@@ -1181,6 +1187,8 @@
   <div class="modal" id="editNameModal">
     <div class="modal-content">
       <h3>✏️ Sohbet Bilgilerini Düzenle</h3>
+      <input type="hidden" id="editIndex" value="">
+      <input type="hidden" id="editSessionId" value="">
       <div style="margin-bottom:15px">
         <label style="display:block;font-size:0.85rem;color:#94a3b8;margin-bottom:5px">Kullanıcı Adı:</label>
         <input type="text" id="newUserName" placeholder="Kullanıcı adı girin..."
@@ -1305,6 +1313,10 @@
     // Reply özelliği için global değişkenler
     let replyingTo = null;  // {messageId, message, sender}
     let msgContextMenuTarget = null;  // Sağ tıklanan mesaj bilgisi
+
+    // Okunmamış mesaj sayısı takibi
+    let unreadCounts = {};  // {sessionId: count}
+    let lastReadMessageCount = {};  // {sessionId: lastSeenCount}
 
     // 🚀 PERFORMANS: Debounced render fonksiyonları (150ms gecikmeli)
     const debouncedRenderUsers = debounce(() => renderUsers(), 150);
@@ -1462,7 +1474,31 @@
 
           sessions = {};
           s.forEach(c => {
-            sessions[c.key] = c.val();
+            const sessionId = c.key;
+            const sessionData = c.val();
+            sessions[sessionId] = sessionData;
+
+            // Okunmamış mesaj sayısını hesapla (sadece kullanıcı mesajları)
+            const allMessages = Object.values(sessionData.messages || {});
+            const userMessages = allMessages.filter(m => m.sender === 'user');
+            const currentUserMsgCount = userMessages.length;
+            const lastSeenUserCount = lastReadMessageCount[sessionId] || 0;
+
+            // Eğer bu session şu anda seçili değilse ve yeni kullanıcı mesajı varsa
+            if (sessionId !== selectedUser && currentUserMsgCount > lastSeenUserCount) {
+              // İlk yüklemede değilse (lastSeenUserCount > 0) veya zaten unread varsa
+              if (lastSeenUserCount > 0 || unreadCounts[sessionId]) {
+                unreadCounts[sessionId] = (unreadCounts[sessionId] || 0) + (currentUserMsgCount - lastSeenUserCount);
+              }
+              lastReadMessageCount[sessionId] = currentUserMsgCount;
+            } else if (sessionId === selectedUser) {
+              // Seçili session için okunmamış sayısını sıfırla
+              unreadCounts[sessionId] = 0;
+              lastReadMessageCount[sessionId] = currentUserMsgCount;
+            } else if (!lastReadMessageCount[sessionId]) {
+              // İlk yükleme - mevcut sayıyı kaydet, badge gösterme
+              lastReadMessageCount[sessionId] = currentUserMsgCount;
+            }
           });
 
           // Debounce ile render - kasma önlenir
@@ -1592,6 +1628,11 @@
         const safePhone = escapeHtml(sessions[u.id]?.info?.phoneNumber || 'telefon yok');
         const safePreview = escapeHtml(previewText);
 
+        // Okunmamış mesaj sayısını hesapla
+        const unreadCount = unreadCounts[u.id] || 0;
+        const unreadBadgeClass = unreadCount > 0 ? '' : 'hidden';
+        const unreadBadgeText = unreadCount > 99 ? '99+' : unreadCount;
+
         return `
       <div class="user-item ${u.id === selectedUser ? 'active' : ''} ${u.needsAttention ? 'needs-attention' : ''} ${u.pinned ? 'pinned' : ''}" data-session-id="${safeId}" data-original-type="${u.id === null ? 'null' : 'string'}" data-index="${index}">
         <div class="user-info">
@@ -1599,7 +1640,7 @@
           <div class="phone" style="font-size:0.75rem;color:#64748b;margin-bottom:2px;cursor:pointer;user-select:none">${safePhone}</div>
           <div class="preview">${safePreview}</div>
         </div>
-        <button class="delete-session-btn" onclick="event.stopPropagation(); deleteSession('${safeId}')" title="Sohbeti Sil">🗑️</button>
+        <div class="unread-badge ${unreadBadgeClass}">${unreadBadgeText}</div>
       </div>
     `;
       }).join('');
@@ -1666,6 +1707,12 @@
 
       // ID'yi olduğu gibi kullan - sanitize etme
       selectedUser = id;
+
+      // Okunmamış mesaj sayısını sıfırla
+      unreadCounts[id] = 0;
+      if (sessions[id]?.messages) {
+        lastReadMessageCount[id] = Object.keys(sessions[id].messages).length;
+      }
 
       // Session var mı kontrol et
       if (!sessions[id]) {
@@ -2060,7 +2107,9 @@
     // Sağ tık menüsünden isim düzenleme
     function editFromContextMenu() {
       if (userContextMenuTarget) {
+        editingUserId = userContextMenuTarget.sessionId;
         document.getElementById('editIndex').value = userContextMenuTarget.index;
+        document.getElementById('editSessionId').value = userContextMenuTarget.sessionId;
         const userData = sessions[userContextMenuTarget.sessionId];
         document.getElementById('newUserName').value = userData?.info?.customName || '';
         document.getElementById('newUserPhone').value = userData?.info?.phoneNumber || '';
