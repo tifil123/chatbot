@@ -36,7 +36,7 @@ class CommandCenter:
         self.root.configure(bg=self.colors['bg'])
         
         # Proje klasörü
-        self.project_folder = r"C:\Users\berka\Downloads\chatbot"
+        self.project_folder = r"C:\Users\berka\Desktop\chatbot"
         self.backup_tools = os.path.join(self.project_folder, "backup-tools")
         
         # Aktif kategori

@@ -560,6 +560,128 @@
       opacity: 1;
       left: 10px
     }
+
+    /* TELEFON NUMARASI GİRİŞ FORMU */
+    .phone-form-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 30px;
+      text-align: center;
+      background: linear-gradient(180deg, #f8f9fa 0%, #fff 100%)
+    }
+
+    .phone-form-container.hidden {
+      display: none
+    }
+
+    .phone-form-icon {
+      font-size: 4rem;
+      margin-bottom: 20px;
+      animation: bounce 2s infinite
+    }
+
+    @keyframes bounce {
+
+      0%,
+      100% {
+        transform: translateY(0)
+      }
+
+      50% {
+        transform: translateY(-10px)
+      }
+    }
+
+    .phone-form-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #333;
+      margin-bottom: 10px
+    }
+
+    .phone-form-subtitle {
+      font-size: 0.85rem;
+      color: #666;
+      margin-bottom: 25px;
+      line-height: 1.5
+    }
+
+    .phone-input-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 280px;
+      margin-bottom: 15px
+    }
+
+    .phone-input-wrapper input {
+      width: 100%;
+      padding: 15px 15px 15px 45px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      box-sizing: border-box
+    }
+
+    .phone-input-wrapper input:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15)
+    }
+
+    .phone-input-wrapper input::placeholder {
+      color: #aaa
+    }
+
+    .phone-input-wrapper .phone-icon {
+      position: absolute;
+      left: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.2rem
+    }
+
+    .phone-error {
+      color: #ef4444;
+      font-size: 0.8rem;
+      margin-bottom: 15px;
+      min-height: 20px
+    }
+
+    .phone-submit-btn {
+      width: 100%;
+      max-width: 280px;
+      padding: 15px 30px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s
+    }
+
+    .phone-submit-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4)
+    }
+
+    .phone-submit-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none
+    }
+
+    .phone-privacy {
+      font-size: 0.7rem;
+      color: #999;
+      margin-top: 20px;
+      max-width: 280px
+    }
   </style>
 </head>
 
@@ -591,7 +713,25 @@
       <button class="close-btn" onclick="toggleWidget()">×</button>
     </div>
 
-    <div class="chat-messages" id="widgetMessages"></div>
+    <div class="chat-messages" id="widgetMessages">
+      <!-- Telefon Numarası Giriş Formu -->
+      <div class="phone-form-container" id="phoneFormContainer">
+        <div class="phone-form-icon">📱</div>
+        <div class="phone-form-title">Hoş Geldiniz!</div>
+        <div class="phone-form-subtitle">Sohbete başlamak için lütfen telefon numaranızı ülke koduyla birlikte girin. Bu
+          sayede sohbet geçmişiniz kaybolmaz.</div>
+        <div class="phone-input-wrapper">
+          <span class="phone-icon">📞</span>
+          <input type="tel" id="phoneInput" placeholder="+90 5XX XXX XX XX" maxlength="20"
+            oninput="formatPhoneInput(this)" onkeypress="if(event.key==='Enter')submitPhoneNumber()">
+        </div>
+        <div class="phone-error" id="phoneError"></div>
+        <button class="phone-submit-btn" id="phoneSubmitBtn" onclick="submitPhoneNumber()">
+          Sohbete Başla 💬
+        </button>
+        <div class="phone-privacy">🔒 Numaranız güvenle saklanır. Örnek: +90 532 123 45 67</div>
+      </div>
+    </div>
     <div class="typing-indicator" id="widgetTyping">
       <span></span><span></span><span></span>
     </div>
@@ -634,6 +774,236 @@
     let widgetReplyingTo = null;  // {messageId, message, sender}
     let widgetMsgContextMenuTarget = null;
 
+    // Telefon numarası yönetimi için global değişkenler
+    let widgetUserPhone = null;
+
+    // ============ TELEFON NUMARASI FONKSİYONLARI ============
+
+    /**
+     * Telefon numarasını formatla (+90 5XX XXX XX XX)
+     */
+    function formatPhoneInput(input) {
+      let value = input.value;
+
+      // + işaretini koru, sadece rakamları al
+      let hasPlus = value.startsWith('+');
+      let digits = value.replace(/\D/g, '');
+
+      // Maksimum 12 hane (ülke kodu dahil: 90 + 10 hane)
+      if (digits.length > 12) digits = digits.slice(0, 12);
+
+      // Formatlama: +XX XXX XXX XX XX
+      let formatted = '';
+      if (hasPlus || digits.length > 0) {
+        formatted = '+';
+      }
+
+      if (digits.length > 0) {
+        // Ülke kodu (ilk 2 hane)
+        formatted += digits.slice(0, 2);
+        if (digits.length > 2) {
+          formatted += ' ' + digits.slice(2, 5);
+        }
+        if (digits.length > 5) {
+          formatted += ' ' + digits.slice(5, 8);
+        }
+        if (digits.length > 8) {
+          formatted += ' ' + digits.slice(8, 10);
+        }
+        if (digits.length > 10) {
+          formatted += ' ' + digits.slice(10, 12);
+        }
+      }
+
+      input.value = formatted;
+    }
+
+    /**
+     * Telefon numarasını validate et
+     */
+    function validatePhone(phone) {
+      // + işaretini ve boşlukları temizle, sadece rakamları al
+      const cleaned = phone.replace(/\D/g, '');
+
+      // Ülke kodu + numara: en az 10 hane olmalı
+      if (cleaned.length < 10) {
+        return { valid: false, error: 'Telefon numarası çok kısa. Ülke kodunu eklediğinizden emin olun.' };
+      }
+      if (cleaned.length > 15) {
+        return { valid: false, error: 'Telefon numarası çok uzun.' };
+      }
+      if (!phone.startsWith('+')) {
+        return { valid: false, error: 'Telefon numarası + ile başlamalıdır. Örnek: +90 532 123 45 67' };
+      }
+
+      // Formatlı halini de döndür
+      return { valid: true, cleaned: '+' + cleaned };
+    }
+
+    /**
+     * Telefon formunu gizle, sohbet alanını göster
+     */
+    function hidePhoneForm() {
+      const form = document.getElementById('phoneFormContainer');
+      if (form) form.classList.add('hidden');
+    }
+
+    /**
+     * Telefon formunu göster
+     */
+    function showPhoneForm() {
+      const form = document.getElementById('phoneFormContainer');
+      if (form) form.classList.remove('hidden');
+    }
+
+    /**
+     * Firebase'de telefon numarasına göre session ara
+     */
+    async function findSessionByPhone(phone) {
+      try {
+        const sessionsData = await firebaseService.read('sessions');
+        if (!sessionsData) return null;
+
+        // Tüm session'ları dolaş, telefon numarasına göre eşleşen bul
+        for (const [sessionId, sessionData] of Object.entries(sessionsData)) {
+          if (sessionData.info && sessionData.info.phoneNumber === phone) {
+            console.log('✅ Mevcut session bulundu:', sessionId);
+            return { sessionId, sessionData };
+          }
+        }
+        return null;
+      } catch (error) {
+        console.error('❌ Session arama hatası:', error);
+        return null;
+      }
+    }
+
+    /**
+     * Mevcut session'ın mesajlarını yükle
+     */
+    async function loadExistingMessages(sessionId) {
+      try {
+        const messagesData = await firebaseService.read('sessions/' + sessionId + '/messages');
+        if (!messagesData) return;
+
+        // Mesajları timestamp'e göre sırala
+        const sortedMessages = Object.entries(messagesData)
+          .map(([id, msg]) => ({ id, ...msg }))
+          .sort((a, b) => a.timestamp - b.timestamp);
+
+        // Her mesajı widget'a ekle
+        sortedMessages.forEach(msg => {
+          const isUser = msg.sender === 'user';
+          addWidgetMessage(msg.message, isUser, msg.id, msg.replyTo || null);
+        });
+
+        console.log('✅ Mevcut mesajlar yüklendi:', sortedMessages.length);
+      } catch (error) {
+        console.error('❌ Mesaj yükleme hatası:', error);
+      }
+    }
+
+    /**
+     * Telefon numarasını gönder ve session bul/oluştur
+     */
+    async function submitPhoneNumber() {
+      const input = document.getElementById('phoneInput');
+      const errorEl = document.getElementById('phoneError');
+      const submitBtn = document.getElementById('phoneSubmitBtn');
+
+      const phone = input.value;
+      const validation = validatePhone(phone);
+
+      if (!validation.valid) {
+        errorEl.textContent = validation.error;
+        input.focus();
+        return;
+      }
+
+      errorEl.textContent = '';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Bağlanıyor...';
+
+      try {
+        const cleanedPhone = validation.cleaned;
+        widgetUserPhone = cleanedPhone;
+
+        // localStorage'a kaydet
+        localStorage.setItem('widget_user_phone', cleanedPhone);
+
+        // Firebase'de bu telefona ait session var mı?
+        const existingSession = await findSessionByPhone(cleanedPhone);
+
+        if (existingSession) {
+          // Mevcut session'ı kullan
+          widgetSessionId = existingSession.sessionId;
+          localStorage.setItem('widget_session_id', widgetSessionId);
+          console.log('📱 Mevcut session kullanılıyor:', widgetSessionId);
+
+          // Session'ı güncelle
+          await firebaseService.update('sessions/' + widgetSessionId + '/info', {
+            lastActive: Date.now(),
+            status: 'active'
+          });
+
+          // Mevcut mesajları yükle
+          hidePhoneForm();
+          await loadExistingMessages(widgetSessionId);
+
+        } else {
+          // Yeni session oluştur
+          widgetSessionId = await firebaseService.createUniqueSessionId();
+          localStorage.setItem('widget_session_id', widgetSessionId);
+          console.log('🆕 Yeni session oluşturuldu:', widgetSessionId);
+
+          // Session bilgilerini kaydet
+          await firebaseService.update('sessions/' + widgetSessionId + '/info', {
+            startTime: Date.now(),
+            lastActive: Date.now(),
+            userAgent: navigator.userAgent.slice(0, 100),
+            status: 'active',
+            mode: 'auto',
+            customName: 'isimsiz',
+            phoneNumber: cleanedPhone
+          });
+
+          hidePhoneForm();
+          addWidgetMessage('Merhaba! Size nasıl yardımcı olabilirim? 😊', false);
+        }
+
+        // Admin yanıtlarını dinlemeye başla
+        setupMessageListener();
+
+        // Input'ları aktifleştir
+        document.getElementById('widgetInput').disabled = false;
+        document.getElementById('widgetSendBtn').disabled = false;
+        document.getElementById('widgetInput').focus();
+
+      } catch (error) {
+        console.error('❌ Telefon kayıt hatası:', error);
+        errorEl.textContent = 'Bir hata oluştu, lütfen tekrar deneyin.';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sohbete Başla 💬';
+      }
+    }
+
+    /**
+     * Admin mesajlarını dinlemeye başla
+     */
+    function setupMessageListener() {
+      firebaseService.subscribe('sessions/' + widgetSessionId + '/messages', (snap) => {
+        const msg = snap.val();
+        if (msg.sender === 'bot' && msg.fromAdmin && !document.querySelector(`[data-msg-id="${snap.key}"]`)) {
+          hideWidgetTyping();
+          addWidgetMessage(msg.message, false, snap.key, msg.replyTo || null);
+          if (!widgetOpen) {
+            widgetUnread++;
+            updateBadge();
+          }
+        }
+      }, 'child_added');
+    }
+
     function toggleWidget() {
       widgetOpen = !widgetOpen;
       document.getElementById('chatWidget').classList.toggle('open', widgetOpen);
@@ -661,74 +1031,83 @@
         }
 
         console.log('🔗 Widget Firebase bağlantısı kuruluyor:', firebaseUrl);
-        console.log('🔥 Firebase apps count (önce):', firebase.apps.length);
-        console.log('🔍 Widget kullanılan Firebase URL:', firebaseUrl);
 
         // Firebase Service katmanını kullanarak bağlan
         const config = { databaseURL: firebaseUrl };
         widgetDb = await firebaseService.connect(config);
 
-        console.log('🔥 Firebase apps count (sonra):', firebase.apps.length);
+        console.log('🔥 Firebase bağlandı');
 
-        // localStorage kullanarak session'ı kalıcı yap (sekme kapansa bile devam etsin)
-        widgetSessionId = localStorage.getItem('widget_session_id');
-        if (!widgetSessionId) {
-          // Güçlü ve benzersiz session ID oluştur - await ile bekle
-          try {
+        // Config alanını gizle
+        const configArea = document.getElementById('configArea');
+        if (configArea) configArea.style.display = 'none';
+
+        // 📱 TELEFON KONTROLÜ - Kayıtlı telefon var mı?
+        const savedPhone = localStorage.getItem('widget_user_phone');
+
+        if (savedPhone) {
+          console.log('📱 Kayıtlı telefon bulundu:', savedPhone);
+          widgetUserPhone = savedPhone;
+
+          // Firebase'de bu telefona ait session var mı?
+          const existingSession = await findSessionByPhone(savedPhone);
+
+          if (existingSession) {
+            // Mevcut session'ı kullan
+            widgetSessionId = existingSession.sessionId;
+            localStorage.setItem('widget_session_id', widgetSessionId);
+            console.log('📱 Mevcut session kullanılıyor:', widgetSessionId);
+
+            // Session'ı güncelle
+            await firebaseService.update('sessions/' + widgetSessionId + '/info', {
+              lastActive: Date.now(),
+              status: 'active'
+            });
+
+            // Telefon formunu gizle ve mesajları yükle
+            hidePhoneForm();
+            await loadExistingMessages(widgetSessionId);
+
+            // Admin yanıtlarını dinlemeye başla
+            setupMessageListener();
+
+            // Input'ları aktifleştir
+            document.getElementById('widgetInput').disabled = false;
+            document.getElementById('widgetSendBtn').disabled = false;
+
+          } else {
+            // Telefon var ama session yok - yeni session oluştur
             widgetSessionId = await firebaseService.createUniqueSessionId();
             localStorage.setItem('widget_session_id', widgetSessionId);
-            console.log('🆕 Güçlü session oluşturuldu:', widgetSessionId);
-          } catch (error) {
-            console.error('❌ Session oluşturma hatası:', error);
-            // Fallback: basit ID oluştur
-            widgetSessionId = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
-            localStorage.setItem('widget_session_id', widgetSessionId);
+            console.log('🆕 Yeni session oluşturuldu:', widgetSessionId);
+
+            await firebaseService.update('sessions/' + widgetSessionId + '/info', {
+              startTime: Date.now(),
+              lastActive: Date.now(),
+              userAgent: navigator.userAgent.slice(0, 100),
+              status: 'active',
+              mode: 'auto',
+              customName: 'isimsiz',
+              phoneNumber: savedPhone
+            });
+
+            hidePhoneForm();
+            addWidgetMessage('Merhaba! Size nasıl yardımcı olabilirim? 😊', false);
+
+            setupMessageListener();
+            document.getElementById('widgetInput').disabled = false;
+            document.getElementById('widgetSendBtn').disabled = false;
           }
+
+        } else {
+          // Kayıtlı telefon yok - telefon formunu göster
+          console.log('📱 Kayıtlı telefon yok, form gösteriliyor');
+          showPhoneForm();
+          // Input'ları disabled bırak - telefon girilince aktif olacak
         }
 
-        // Session bilgilerini güncelle (artık widgetSessionId kesinlikle dolu)
-        const sessionInfo = {
-          startTime: Date.now(),
-          lastActive: Date.now(),
-          userAgent: navigator.userAgent.slice(0, 100),
-          status: 'active',
-          mode: 'auto',
-          customName: 'isimsiz'
-        };
-
-        console.log('📝 Session bilgileri kaydediliyor:', sessionInfo);
-        try {
-          await firebaseService.update('sessions/' + widgetSessionId + '/info', sessionInfo);
-          console.log('✅ Session başarıyla oluşturuldu');
-        } catch (error) {
-          console.error('❌ Session bilgileri kaydetme hatası:', error);
-        }
-
-
-
-        // Admin yanıtlarını dinle - firebaseService kullanarak
-        firebaseService.subscribe('sessions/' + widgetSessionId + '/messages', (snap) => {
-          const msg = snap.val();
-          if (msg.sender === 'bot' && msg.fromAdmin && !document.querySelector(`[data-msg-id="${snap.key}"]`)) {
-            hideWidgetTyping();
-            // replyTo bilgisini de gönder
-            addWidgetMessage(msg.message, false, snap.key, msg.replyTo || null);
-            if (!widgetOpen) {
-              widgetUnread++;
-              updateBadge();
-            }
-          }
-        }, 'child_added');
-
-        document.getElementById('widgetInput').disabled = false;
-        document.getElementById('widgetSendBtn').disabled = false;
-        document.getElementById('configArea').style.display = 'none';
-
-        addWidgetMessage('Merhaba! Size nasıl yardımcı olabilirim? 😊', false);
-        // alert('Firebase bağlandı! Artık mesaj gönderebilirsiniz.');
       } catch (e) {
         console.error('Widget Firebase bağlantı hatası:', e);
-        // Hata durumunda kullanıcıya gösterme, sadece konsola yaz
       }
     }
 

@@ -146,7 +146,8 @@
     }
 
     .user-info * {
-      cursor: pointer
+      cursor: text;
+      user-select: text
     }
 
     .user-item.pinned {
@@ -1478,26 +1479,20 @@
             const sessionData = c.val();
             sessions[sessionId] = sessionData;
 
-            // Okunmamış mesaj sayısını hesapla (sadece kullanıcı mesajları)
+            // 🔥 Okunmamış mesaj sayısını Firebase'deki lastReadTimestamp'e göre hesapla
             const allMessages = Object.values(sessionData.messages || {});
             const userMessages = allMessages.filter(m => m.sender === 'user');
-            const currentUserMsgCount = userMessages.length;
-            const lastSeenUserCount = lastReadMessageCount[sessionId] || 0;
+            const lastReadTimestamp = sessionData.info?.lastReadTimestamp || 0;
 
-            // Eğer bu session şu anda seçili değilse ve yeni kullanıcı mesajı varsa
-            if (sessionId !== selectedUser && currentUserMsgCount > lastSeenUserCount) {
-              // İlk yüklemede değilse (lastSeenUserCount > 0) veya zaten unread varsa
-              if (lastSeenUserCount > 0 || unreadCounts[sessionId]) {
-                unreadCounts[sessionId] = (unreadCounts[sessionId] || 0) + (currentUserMsgCount - lastSeenUserCount);
-              }
-              lastReadMessageCount[sessionId] = currentUserMsgCount;
-            } else if (sessionId === selectedUser) {
-              // Seçili session için okunmamış sayısını sıfırla
+            // lastReadTimestamp'ten sonra gelen kullanıcı mesajlarını say
+            const unreadUserMessages = userMessages.filter(m => m.timestamp > lastReadTimestamp);
+
+            // Eğer bu session şu anda seçili ise, okunmamış sayısını sıfırla
+            if (sessionId === selectedUser) {
               unreadCounts[sessionId] = 0;
-              lastReadMessageCount[sessionId] = currentUserMsgCount;
-            } else if (!lastReadMessageCount[sessionId]) {
-              // İlk yükleme - mevcut sayıyı kaydet, badge gösterme
-              lastReadMessageCount[sessionId] = currentUserMsgCount;
+            } else {
+              // Firebase'deki lastReadTimestamp'e göre okunmamış mesaj sayısını belirle
+              unreadCounts[sessionId] = unreadUserMessages.length;
             }
           });
 
@@ -1559,9 +1554,11 @@
         const last = msgs.length ? Math.max(...msgs.map(m => m.timestamp)) : 0;
         const lastMsg = msgs.sort((a, b) => b.timestamp - a.timestamp)[0];
 
-        const needsAttention = data.info?.needsAttention || false;
+        // 📝 needsAttention: Sadece bu session'a ait bekleyen soru varsa true olsun
+        // pendingQuestions içinde bu sessionId'ye ait soru var mı kontrol et
+        const hasPendingQuestion = Object.values(pendingQuestions).some(q => q.sessionId === id && q.status === 'pending');
         const pinned = data.info?.pinned || false;  // Sabitleme bilgisi
-        return { id, last, lastMsg, needsAttention, pinned };
+        return { id, last, lastMsg, needsAttention: hasPendingQuestion, pinned };
       }).sort((a, b) => {
         // Önce sabitlenmiş sohbetler
         if (a.pinned && !b.pinned) return -1;
@@ -1636,9 +1633,9 @@
         return `
       <div class="user-item ${u.id === selectedUser ? 'active' : ''} ${u.needsAttention ? 'needs-attention' : ''} ${u.pinned ? 'pinned' : ''}" data-session-id="${safeId}" data-original-type="${u.id === null ? 'null' : 'string'}" data-index="${index}">
         <div class="user-info">
-          <div class="name">${u.pinned ? '📌' : '🐰'} ${safeName}</div>
-          <div class="phone" style="font-size:0.75rem;color:#64748b;margin-bottom:2px;cursor:pointer;user-select:none">${safePhone}</div>
-          <div class="preview">${safePreview}</div>
+          <div class="name" style="user-select:text;width:max-content;max-width:100%">${u.pinned ? '📌' : '🐰'} ${safeName}</div>
+          <div class="phone" style="font-size:0.75rem;color:#64748b;margin-bottom:2px;cursor:text;user-select:text;width:max-content;max-width:100%">${safePhone}</div>
+          <div class="preview" style="user-select:text;width:max-content;max-width:100%">${safePreview}</div>
         </div>
         <div class="unread-badge ${unreadBadgeClass}">${unreadBadgeText}</div>
       </div>
@@ -1662,6 +1659,22 @@
 
       // 🔧 EVENT DELEGATION: Click olayları için parent listener
       el.addEventListener('click', function (e) {
+        // 📝 Metin seçimi yapılıyorsa session seçimini engelle
+        const selection = window.getSelection();
+        if (selection && selection.toString().trim().length > 0) {
+          console.log('📝 Metin seçili, session seçimi engellendi');
+          return;
+        }
+
+        // 📝 user-info içindeki metinlere (isim, telefon, önizleme) tıklandıysa session seçme
+        const clickedElement = e.target;
+        if (clickedElement.closest('.name') ||
+          clickedElement.closest('.phone') ||
+          clickedElement.closest('.preview')) {
+          console.log('📝 Metin alanına tıklandı, session seçimi engellendi');
+          return;
+        }
+
         const item = e.target.closest('.user-item');
         if (!item) return;
 
@@ -1676,6 +1689,15 @@
         }
 
         selectUser(sessionId);
+      });
+
+      // 📝 Çift tıklama ile kelime seçimini koru
+      el.addEventListener('dblclick', function (e) {
+        // user-info içindeki elemanlara çift tıklandıysa session seçimini engelle
+        if (e.target.closest('.user-info')) {
+          e.stopPropagation();
+          console.log('📝 Çift tıklama - kelime seçimi korunuyor');
+        }
       });
 
       // 🔧 EVENT DELEGATION: Context menu olayları için parent listener
@@ -1708,10 +1730,22 @@
       // ID'yi olduğu gibi kullan - sanitize etme
       selectedUser = id;
 
-      // Okunmamış mesaj sayısını sıfırla
+      // Okunmamış mesaj sayısını sıfırla (lokal)
       unreadCounts[id] = 0;
       if (sessions[id]?.messages) {
         lastReadMessageCount[id] = Object.keys(sessions[id].messages).length;
+      }
+
+      // 🔥 Firebase'e lastReadTimestamp kaydet - TÜM cihazlarda senkronize olur
+      if (id && firebaseService) {
+        const now = Date.now();
+        firebaseService.update(`sessions/${id}/info`, { lastReadTimestamp: now })
+          .then(() => {
+            console.log('✅ lastReadTimestamp Firebase\'e kaydedildi:', now);
+          })
+          .catch(err => {
+            console.error('❌ lastReadTimestamp kaydetme hatası:', err);
+          });
       }
 
       // Session var mı kontrol et
@@ -2353,6 +2387,10 @@
       // Popup olmadan doğrudan soruyu sil
       if (db) firebaseService.ref('pending_questions/' + qId).remove();
 
+      // 🔥 needsAttention flag'ini temizle
+      firebaseService.ref('sessions/' + selectedUser + '/info/needsAttention').set(false);
+      firebaseService.ref('sessions/' + selectedUser + '/info/hasPendingQuestion').set(false);
+
       switchTab('config');
       document.getElementById('replyInput').focus();
       toast('Manuel kontrolü aldınız! Yanıt yazabilirsiniz.', 'success');
@@ -2365,6 +2403,14 @@
     }
 
     function confirmDismiss(id) {
+      // 🔥 needsAttention flag'ini temizle - session ID'yi pending question'dan al
+      const pendingQ = pendingQuestions[id];
+      if (pendingQ && pendingQ.sessionId) {
+        const safeSessionId = sanitizeSessionId(pendingQ.sessionId);
+        firebaseService.ref('sessions/' + safeSessionId + '/info/needsAttention').set(false);
+        firebaseService.ref('sessions/' + safeSessionId + '/info/hasPendingQuestion').set(false);
+      }
+
       if (db) firebaseService.ref('pending_questions/' + id).remove();
       document.querySelector('.modal.show').remove();
       toast('Soru silindi', 'success');
@@ -2564,8 +2610,15 @@
 
       firebaseService.ref('learned_responses').push(learnData);
 
-      // Bekleyen soruyu sil
+      // Bekleyen soruyu sil ve needsAttention flag'ini temizle
       if (teachingPendingId) {
+        // 🔥 Session ID'yi pending question'dan al ve needsAttention'ı temizle
+        const pendingQ = pendingQuestions[teachingPendingId];
+        if (pendingQ && pendingQ.sessionId) {
+          const safeSessionId = sanitizeSessionId(pendingQ.sessionId);
+          firebaseService.ref('sessions/' + safeSessionId + '/info/needsAttention').set(false);
+          firebaseService.ref('sessions/' + safeSessionId + '/info/hasPendingQuestion').set(false);
+        }
         firebaseService.ref('pending_questions/' + teachingPendingId).remove();
       }
 
