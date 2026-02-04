@@ -777,6 +777,232 @@
     // Telefon numarası yönetimi için global değişkenler
     let widgetUserPhone = null;
 
+    // ============ BAĞLAMSAL EŞLEŞTİRME FONKSİYONU ============
+
+    /**
+     * Soruya en uygun öğrenilmiş yanıtı bul
+     * SADECE tam eşleşme arar, birden fazla varsa chat history'ye bakar
+     * @param {string} question - Kullanıcının sorusu
+     * @param {Object} learnedData - Firebase'den gelen öğrenilmiş yanıtlar
+     * @param {Array} chatHistory - Son mesajların listesi
+     * @returns {Object|null} En uygun eşleşme veya null (eşleşme yoksa pending'e düşer)
+     */
+    function findBestMatch(question, learnedData, chatHistory) {
+      if (!learnedData) return null;
+
+      const questionLower = question.toLowerCase().trim();
+      const allResponses = Object.values(learnedData);
+
+      // SADECE tam eşleşme ara - kısmi eşleşme YOK
+      const exactMatches = allResponses.filter(item =>
+        item.question && item.question.toLowerCase().trim() === questionLower
+      );
+
+      // Eşleşme yoksa null döndür → pending'e düşer
+      if (exactMatches.length === 0) {
+        console.log('❌ Tam eşleşme bulunamadı, pending\'e düşecek:', question);
+        return null;
+      }
+
+      // Tek eşleşme varsa doğrudan döndür
+      if (exactMatches.length === 1) {
+        console.log('✅ Tam eşleşme bulundu:', exactMatches[0].question);
+        return exactMatches[0];
+      }
+
+      // Birden fazla TAM eşleşme var - contextTags ve chat history'ye bakarak en uygununu seç
+      console.log(`🔍 ${exactMatches.length} tam eşleşme bulundu, bağlam analizi yapılıyor...`);
+
+      // Son 10 mesajı tek string olarak birleştir
+      const historyText = chatHistory
+        .map(h => (h.message || '').toLowerCase())
+        .join(' ');
+
+      let bestMatch = null;
+      let bestScore = -1;
+
+      for (const match of exactMatches) {
+        let score = 0;
+
+        // ÖNCELİKLİ: contextTags varsa bunları kontrol et (yüksek puan)
+        const contextTags = match.contextTags || [];
+        if (contextTags.length > 0) {
+          for (const tag of contextTags) {
+            if (historyText.includes(tag.toLowerCase())) {
+              score += 10; // Her etiket eşleşmesi için yüksek puan
+              console.log(`   🏷️ Etiket eşleşti: "${tag}"`);
+            }
+          }
+        }
+
+        // Etiket yoksa veya eşleşmediyse, cevaptaki kelimelere bak
+        if (score === 0) {
+          const keywords = (match.response || '')
+            .toLowerCase()
+            .split(/\s+/)
+            .filter(word => word.length > 3);
+
+          for (const keyword of keywords) {
+            if (historyText.includes(keyword)) {
+              score++;
+            }
+          }
+        }
+
+        const tagInfo = contextTags.length > 0 ? ` [etiketler: ${contextTags.join(', ')}]` : '';
+        console.log(`   📊 "${match.response?.slice(0, 30)}..."${tagInfo} skoru: ${score}`);
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = match;
+        }
+      }
+
+      // Eğer hiçbir context eşleşmesi yoksa, ilk eşleşmeyi döndür
+      if (bestScore === 0) {
+        console.log('⚠️ Bağlam eşleşmesi yok, ilk eşleşme kullanılıyor');
+        return exactMatches[0];
+      }
+
+      console.log(`✅ En iyi eşleşme seçildi (skor: ${bestScore})`);
+      return bestMatch;
+    }
+
+    // ============ ÇOKLU SORU ALGILAMA ============
+
+    /**
+     * Türkçe'de filtrelenmesi gereken yaygın kelimeler (stop words)
+     */
+    const TURKISH_STOP_WORDS = [
+      'bir', 'bu', 'şu', 'o', 've', 'ile', 'için', 'de', 'da', 'den', 'dan',
+      'mi', 'mı', 'mu', 'mü', 'ne', 'var', 'yok', 'ben', 'sen', 'biz', 'siz',
+      'nasıl', 'kadar', 'gibi', 'daha', 'çok', 'az', 'en', 'ama', 'fakat',
+      'veya', 'ya', 'hem', 'ise', 'ki', 'eğer', 'acaba', 'lütfen', 'teşekkür'
+    ];
+
+    /**
+     * Metinden anlamlı anahtar kelimeleri çıkar
+     * @param {string} text - Metin
+     * @returns {Array} Anahtar kelimeler
+     */
+    function extractKeywords(text) {
+      if (!text) return [];
+
+      return text
+        .toLowerCase()
+        .replace(/[?!.,;:'"()]/g, ' ')  // Noktalama işaretlerini kaldır
+        .split(/\s+/)
+        .filter(word =>
+          word.length > 2 &&
+          !TURKISH_STOP_WORDS.includes(word)
+        );
+    }
+
+    /**
+     * Kullanıcı mesajında birden fazla öğrenilmiş yanıt ara
+     * Anahtar kelime tabanlı eşleştirme yapar
+     * @param {string} userMessage - Kullanıcının mesajı
+     * @param {Object} learnedData - Firebase'den gelen öğrenilmiş yanıtlar  
+     * @param {Array} chatHistory - Son mesajların listesi
+     * @returns {Object} {matches: Array, unmatchedParts: Array}
+     */
+    function findAllMatches(userMessage, learnedData, chatHistory) {
+      if (!learnedData || !userMessage) {
+        return { matches: [], unmatchedParts: [userMessage] };
+      }
+
+      const messageLower = userMessage.toLowerCase().trim();
+      const messageKeywords = extractKeywords(userMessage);
+      const allResponses = Object.values(learnedData);
+
+      console.log('🔍 Çoklu eşleştirme başlatılıyor...');
+      console.log('📝 Mesaj:', userMessage);
+      console.log('🔑 Anahtar kelimeler:', messageKeywords);
+
+      // Önce tam eşleşme dene
+      const exactMatch = allResponses.find(item =>
+        item.question && item.question.toLowerCase().trim() === messageLower
+      );
+
+      if (exactMatch) {
+        console.log('✅ Tam eşleşme bulundu, tek yanıt dönülüyor');
+        return { matches: [exactMatch], unmatchedParts: [] };
+      }
+
+      // Tam eşleşme yoksa, anahtar kelime tabanlı çoklu eşleştirme yap
+      const matches = [];
+      const matchedQuestions = new Set();
+      const matchedResponses = new Set();  // Aynı yanıtı tekrar ekleme
+
+      for (const item of allResponses) {
+        if (!item.question || !item.response) continue;
+
+        // Aynı yanıt zaten eklenmişse atla
+        const responseKey = item.response.toLowerCase().trim().slice(0, 50);
+        if (matchedResponses.has(responseKey)) continue;
+
+        const questionKeywords = extractKeywords(item.question);
+
+        // Eşleşen anahtar kelime sayısını hesapla
+        let matchCount = 0;
+        let matchedWords = [];
+
+        for (const qKeyword of questionKeywords) {
+          // Mesajda bu kelime veya türevi var mı?
+          for (const mKeyword of messageKeywords) {
+            // Kök kelime eşleşmesi (en az 4 karakter ve %70 benzerlik)
+            if (mKeyword.length >= 4 && qKeyword.length >= 4) {
+              const shorter = mKeyword.length < qKeyword.length ? mKeyword : qKeyword;
+              const longer = mKeyword.length >= qKeyword.length ? mKeyword : qKeyword;
+
+              if (longer.includes(shorter) || shorter.includes(longer.slice(0, shorter.length))) {
+                matchCount++;
+                matchedWords.push(qKeyword);
+                break;
+              }
+            }
+            // Tam kelime eşleşmesi
+            if (mKeyword === qKeyword) {
+              matchCount++;
+              matchedWords.push(qKeyword);
+              break;
+            }
+          }
+        }
+
+        // En az 2 anahtar kelime eşleşmesi ve soru kelimelerinin %70'i eşleşmeli (daha kesin)
+        const matchRatio = questionKeywords.length > 0 ? matchCount / questionKeywords.length : 0;
+
+        if (matchCount >= 2 && matchRatio >= 0.7) {
+          // Aynı soruyu tekrar ekleme
+          if (!matchedQuestions.has(item.question.toLowerCase())) {
+            matchedQuestions.add(item.question.toLowerCase());
+            matchedResponses.add(responseKey);  // Yanıtı da kaydet
+            matches.push({
+              ...item,
+              matchScore: matchRatio,
+              matchedWords: matchedWords
+            });
+            console.log(`✅ Eşleşme bulundu: "${item.question}" (skor: ${matchRatio.toFixed(2)}, kelimeler: ${matchedWords.join(', ')})`);
+          }
+        }
+      }
+
+      // Skorlarına göre sırala (en yüksek önce)
+      matches.sort((a, b) => b.matchScore - a.matchScore);
+
+      // En fazla 2 eşleşme döndür (çok fazla yanıt olmasın)
+      const topMatches = matches.slice(0, 2);
+
+      if (topMatches.length === 0) {
+        console.log('❌ Hiç eşleşme bulunamadı');
+        return { matches: [], unmatchedParts: [userMessage] };
+      }
+
+      console.log(`✅ Toplam ${topMatches.length} eşleşme bulundu`);
+      return { matches: topMatches, unmatchedParts: [] };
+    }
+
     // ============ TELEFON NUMARASI FONKSİYONLARI ============
 
     /**
@@ -897,6 +1123,14 @@
           addWidgetMessage(msg.message, isUser, msg.id, msg.replyTo || null);
         });
 
+        // Mesajlar yüklendikten sonra en alta scroll yap
+        setTimeout(() => {
+          const messagesContainer = document.getElementById('widgetMessages');
+          if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+        }, 100);
+
         console.log('✅ Mevcut mesajlar yüklendi:', sortedMessages.length);
       } catch (error) {
         console.error('❌ Mesaj yükleme hatası:', error);
@@ -1011,6 +1245,14 @@
         widgetUnread = 0;
         updateBadge();
         if (widgetDb) document.getElementById('widgetInput').focus();
+
+        // Widget açıldığında en son mesajlara scroll yap
+        setTimeout(() => {
+          const messagesContainer = document.getElementById('widgetMessages');
+          if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          }
+        }, 100);
       }
     }
 
@@ -1294,14 +1536,38 @@
 
       setTimeout(async () => {
         try {
+          // ÖNCELİKLE: Session'ın kontrol modunu kontrol et
+          const controlData = await firebaseService.read('sessions/' + widgetSessionId + '/control');
+          const sessionMode = controlData?.mode || 'auto';
+
+          // Eğer admin devralmışsa (manuel mod), bot yanıt vermesin
+          if (sessionMode === 'manual') {
+            console.log('⏸️ Session manuel modda, bot yanıt vermiyor');
+            hideWidgetTyping();
+            return; // Otomatik yanıt verme, admin halleder
+          }
+
           const learnedData = await firebaseService.read('learned_responses');
-          const responses = Object.values(learnedData || {}).filter(item => item.question === text.toLowerCase());
+
+          // Çoklu soru algılama - birden fazla eşleşme arayabilir
+          const { matches, unmatchedParts } = findAllMatches(text, learnedData, widgetConversationHistory);
 
           hideWidgetTyping();
 
-          if (responses.length > 0) {
-            // Birden fazla yanıt varsa rastgele birini seç
-            const selectedResponse = responses[Math.floor(Math.random() * responses.length)].response;
+          if (matches.length > 0) {
+            // Eşleşme(ler) bulundu
+            let combinedResponse;
+
+            if (matches.length === 1) {
+              // Tek eşleşme - normal yanıt
+              combinedResponse = matches[0].response;
+            } else {
+              // Birden fazla eşleşme - yanıtları birleştir
+              combinedResponse = matches.map((m, index) => {
+                return `${index + 1}. ${m.response}`;
+              }).join('\n\n');
+              console.log(`📝 ${matches.length} yanıt birleştirildi`);
+            }
 
             // Kullanıcının mesajına replyTo oluştur
             const userMsgReplyTo = {
@@ -1310,14 +1576,15 @@
               sender: 'user'
             };
 
-            addWidgetMessage(selectedResponse, false, null, userMsgReplyTo);
+            addWidgetMessage(combinedResponse, false, null, userMsgReplyTo);
             // ⚠️ DÜZELTME: write yerine push kullanılmalı - write tüm mesajları siliyor!
             await firebaseService.push('sessions/' + widgetSessionId + '/messages', {
               sender: 'bot',
-              message: selectedResponse,
+              message: combinedResponse,
               timestamp: Date.now(),
               auto: true,
               learned: true,
+              multiMatch: matches.length > 1,  // Çoklu eşleşme flag'i
               replyTo: userMsgReplyTo  // Kullanıcı mesajına yanıt referansı
             });
           } else {

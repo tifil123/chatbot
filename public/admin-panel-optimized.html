@@ -430,6 +430,10 @@
       display: block
     }
 
+    #tab-learned.active {
+      display: flex
+    }
+
     .card {
       background: #12121a;
       border-radius: 12px;
@@ -1128,13 +1132,13 @@
         </div>
       </div>
 
-      <div class="tab-content" id="tab-learned">
-        <div style="margin-bottom:20px;">
+      <div class="tab-content" id="tab-learned" style="flex-direction:column;height:100%;overflow:hidden;">
+        <div style="flex-shrink:0;background:#1e1e2e;padding:15px 0;border-bottom:1px solid #2a2a3a;">
           <input type="text" id="searchLearned" placeholder="🔍 Sorularda ara (sadece sorular aranır)..."
-            style="width:100%;padding:12px 15px;border:1px solid #2a2a3a;border-radius:25px;background:#0a0a0f;color:#e2e8f0;font-size:0.9rem;margin-bottom:8px"
+            style="width:100%;padding:12px 15px;border:1px solid #2a2a3a;border-radius:25px;background:#0a0a0f;color:#e2e8f0;font-size:0.9rem"
             onkeyup="searchLearnedResponses()">
         </div>
-        <div id="learnedList">
+        <div id="learnedList" style="flex:1;overflow-y:auto;padding-top:15px;">
           <div class="empty">
             <div class="icon">🧠</div>Henüz öğrenilmiş yanıt yok
           </div>
@@ -1175,6 +1179,16 @@
       <textarea id="teachResponse" placeholder="Bot bu soruya ne cevap vermeli?"
         style="width:100%;padding:12px;border:1px solid #2a2a3a;border-radius:8px;background:#0a0a0f;color:#e2e8f0;font-size:0.85rem;margin-bottom:15px;min-height:80px;resize:none;font-family:inherit;overflow:hidden"
         oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"></textarea>
+      <div style="margin-bottom:15px">
+        <label style="display:block;font-size:0.85rem;color:#94a3b8;margin-bottom:5px">🏷️ Bağlam Etiketleri
+          (opsiyonel):</label>
+        <input type="text" id="teachContextTags" placeholder="Örn: telefon, android, ios (virgülle ayır)"
+          style="width:100%;padding:12px;border:1px solid #2a2a3a;border-radius:8px;background:#0a0a0f;color:#e2e8f0;font-size:0.85rem">
+        <p style="font-size:0.75rem;color:#64748b;margin-top:5px">
+          💡 Aynı soru için farklı yanıtlar öğretirken kullanın. Bot, sohbet geçmişinde bu etiketleri arararak en uygun
+          yanıtı seçer.
+        </p>
+      </div>
       <p style="font-size:0.85rem;color:#94a3b8;line-height:1.6">
         Bu yanıtı öğrettiğinizde, bot gelecekte aynı soruyu sorduğunda otomatik olarak bu cevabı verecektir.
       </p>
@@ -1208,26 +1222,6 @@
     </div>
   </div>
 
-  <div class="modal" id="addResponseModal">
-    <div class="modal-content">
-      <h3>➕ Alternatif Yanıt Ekle</h3>
-      <div class="modal-highlight">
-        <div class="label">Soru:</div>
-        <div class="value" id="alternativeQuestion"></div>
-      </div>
-      <textarea id="alternativeResponse" placeholder="Yeni alternatif yanıtı girin..."
-        style="width:100%;padding:12px;border:1px solid #2a2a3a;border-radius:8px;background:#0a0a0f;color:#e2e8f0;font-size:0.85rem;margin-bottom:15px;min-height:80px;resize:none;font-family:inherit;overflow:hidden"
-        oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'"></textarea>
-      <p style="font-size:0.85rem;color:#94a3b8;line-height:1.6">
-        Bu yanıtı eklediğinizde, bot aynı soruyu sorduğunda mevcut yanıtlardan birini rastgele seçecektir.
-      </p>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('addResponseModal')">❌ İptal</button>
-        <button class="btn btn-success" onclick="confirmAlternativeResponse()">✅ Ekle</button>
-      </div>
-    </div>
-  </div>
-
   <div class="context-menu" id="contextMenu">
     <div class="context-menu-item" onclick="pinFromContextMenu()">
       <span>📌</span> <span id="pinMenuLabel">Sabitle</span>
@@ -1256,6 +1250,25 @@
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeModal('editLearnedModal')">❌ İptal</button>
         <button class="btn btn-success" onclick="saveLearnedEdit()">✅ Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="editContextTagsModal">
+    <div class="modal-content">
+      <h3>🏷️ Bağlam Etiketlerini Düzenle</h3>
+      <input type="hidden" id="editingTagsResponseId">
+      <div style="margin-bottom:15px">
+        <label style="display:block;font-size:0.85rem;color:#94a3b8;margin-bottom:5px">Bağlam Etiketleri:</label>
+        <input type="text" id="editContextTagsInput" placeholder="Örn: telefon, android, ios (virgülle ayır)"
+          style="width:100%;padding:12px;border:1px solid #2a2a3a;border-radius:8px;background:#0a0a0f;color:#e2e8f0;font-size:0.85rem">
+      </div>
+      <p style="font-size:0.85rem;color:#94a3b8;line-height:1.6">
+        💡 Bot, aynı soru sorulduğunda sohbet geçmişinde bu etiketleri arayarak en uygun yanıtı seçer.
+      </p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('editContextTagsModal')">❌ İptal</button>
+        <button class="btn btn-success" onclick="saveContextTags()">✅ Kaydet</button>
       </div>
     </div>
   </div>
@@ -1318,6 +1331,9 @@
     // Okunmamış mesaj sayısı takibi
     let unreadCounts = {};  // {sessionId: count}
     let lastReadMessageCount = {};  // {sessionId: lastSeenCount}
+
+    // Düzenleme için global değişkenler
+    let editingLearnedId = null;  // Düzenlenen öğrenilmiş yanıt ID'si
 
     // 🚀 PERFORMANS: Debounced render fonksiyonları (150ms gecikmeli)
     const debouncedRenderUsers = debounce(() => renderUsers(), 150);
@@ -2022,18 +2038,33 @@
 
       // Mevcut context menu varsa kaldır
       let menu = document.getElementById('msgContextMenu');
-      if (!menu) {
-        // Context menu oluştur
-        menu = document.createElement('div');
-        menu.id = 'msgContextMenu';
-        menu.className = 'msg-context-menu';
-        menu.innerHTML = `
-          <div class="msg-context-menu-item" onclick="replyFromContextMenu()">
-            <span>↩️</span> Yanıtla
+      if (menu) {
+        menu.remove();
+      }
+
+      // Context menu oluştur - her seferinde yeniden oluştur (sender'a göre farklı içerik)
+      menu = document.createElement('div');
+      menu.id = 'msgContextMenu';
+      menu.className = 'msg-context-menu';
+
+      // Menü içeriğini oluştur
+      let menuHTML = `
+        <div class="msg-context-menu-item" onclick="replyFromContextMenu()">
+          <span>↩️</span> Yanıtla
+        </div>
+      `;
+
+      // Sadece kullanıcı mesajları için "Yanıt Öğret" seçeneği ekle
+      if (sender === 'user') {
+        menuHTML += `
+          <div class="msg-context-menu-item" onclick="teachFromContextMenu()">
+            <span>🧠</span> Yanıt Öğret
           </div>
         `;
-        document.body.appendChild(menu);
       }
+
+      menu.innerHTML = menuHTML;
+      document.body.appendChild(menu);
 
       // Hedef mesajı kaydet
       msgContextMenuTarget = { messageId, message, sender };
@@ -2066,6 +2097,17 @@
     function replyFromContextMenu() {
       if (msgContextMenuTarget) {
         setReplyTo(msgContextMenuTarget.messageId, msgContextMenuTarget.message, msgContextMenuTarget.sender);
+      }
+      hideMsgContextMenu();
+    }
+
+    /**
+     * Sağ tık menüsünden yanıt öğret
+     */
+    function teachFromContextMenu() {
+      if (msgContextMenuTarget && msgContextMenuTarget.sender === 'user') {
+        // teachResponse fonksiyonunu kullan (pendingId olmadan)
+        teachResponse(msgContextMenuTarget.message, null);
       }
       hideMsgContextMenu();
     }
@@ -2420,11 +2462,12 @@
       const el = document.getElementById('learnedList');
       let list = Object.entries(learnedResponses);
 
-      // Arama terimi varsa sadece sorularda filtrele
+      // Arama terimi varsa sorularda VE yanıtlarda filtrele
       if (searchTerm.trim() !== '') {
         const lowerSearchTerm = searchTerm.toLowerCase();
         list = list.filter(([id, data]) =>
-          data.question.toLowerCase().includes(lowerSearchTerm)
+          data.question.toLowerCase().includes(lowerSearchTerm) ||
+          (data.response && data.response.toLowerCase().includes(lowerSearchTerm))
         );
       }
 
@@ -2451,19 +2494,22 @@
     <div class="learned-item">
       <div class="question">🧠 Soru: "${highlightSearchTerm(question, searchTerm)}"</div>
       <div class="responses-list">
-        ${responses.map((r, index) => `
+        ${responses.map((r, index) => {
+        const tagsDisplay = r.contextTags && r.contextTags.length > 0
+          ? `<div style="margin-top:4px;font-size:0.75rem;color:#667eea">🏷️ Etiketler: ${r.contextTags.join(', ')}</div>`
+          : '<div style="margin-top:4px;font-size:0.75rem;color:#64748b">🏷️ Etiket yok</div>';
+        return `
           <div class="response-item" style="margin-bottom:8px;padding:8px;background:#0a0a0f;border-radius:6px" id="response-${r.id}">
-            <div class="response">💬 Yanıt ${index + 1}: <span id="response-text-${r.id}">${r.response}</span></div>
+            <div class="response">💬 Yanıt ${index + 1}: <span id="response-text-${r.id}">${highlightSearchTerm(r.response, searchTerm)}</span></div>
+            ${tagsDisplay}
             <div class="meta">Öğrenildi: ${new Date(r.learnedAt).toLocaleString('tr-TR')} | Session: ${r.learnedFrom.slice(-8)}</div>
             <div class="learned-actions" style="margin-top:5px">
               <button class="btn btn-warning" style="padding:4px 8px;font-size:0.7rem" onclick="editLearnedResponse('${r.id}')">✏️ Düzenle</button>
+              <button class="btn" style="padding:4px 8px;font-size:0.7rem;background:#667eea;color:#fff" onclick="editContextTags('${r.id}', '${(r.contextTags || []).join(', ')}')">🏷️ Etiket</button>
               <button class="btn btn-danger" style="padding:4px 8px;font-size:0.7rem" onclick="deleteLearned('${r.id}')">🗑️ Sil</button>
             </div>
           </div>
-        `).join('')}
-      </div>
-      <div class="learned-actions" style="margin-top:10px">
-        <button class="btn btn-success" style="padding:6px 12px;font-size:0.75rem" onclick="addAlternativeResponse('${question}')">➕ Alternatif Yanıt Ekle</button>
+        `}).join('')}
       </div>
     </div>
   `).join('');
@@ -2485,6 +2531,37 @@
       if (!confirm('Bu öğrenilmiş yanıtı silmek istediğinize emin misiniz?')) return;
       if (db) firebaseService.ref('learned_responses/' + id).remove();
       toast('Öğrenilmiş yanıt silindi', 'success');
+    }
+
+    // Bağlam etiketlerini düzenleme fonksiyonları
+    function editContextTags(responseId, currentTags) {
+      document.getElementById('editingTagsResponseId').value = responseId;
+      document.getElementById('editContextTagsInput').value = currentTags || '';
+      document.getElementById('editContextTagsModal').classList.add('show');
+      document.getElementById('editContextTagsInput').focus();
+    }
+
+    function saveContextTags() {
+      const responseId = document.getElementById('editingTagsResponseId').value;
+      const tagsInput = document.getElementById('editContextTagsInput').value.trim();
+
+      if (!responseId || !db) return;
+
+      // Etiketleri parse et
+      const contextTags = tagsInput
+        ? tagsInput.split(',').map(tag => tag.trim().toLowerCase()).filter(tag => tag.length > 0)
+        : [];
+
+      // Firebase'de güncelle
+      if (contextTags.length > 0) {
+        firebaseService.ref('learned_responses/' + responseId + '/contextTags').set(contextTags);
+      } else {
+        // Etiket yoksa alanı sil
+        firebaseService.ref('learned_responses/' + responseId + '/contextTags').remove();
+      }
+
+      closeModal('editContextTagsModal');
+      toast('Etiketler güncellendi: ' + (contextTags.length > 0 ? contextTags.join(', ') : 'Etiket kaldırıldı'), 'success');
     }
 
     function switchTab(tab) {
@@ -2592,6 +2669,7 @@
       teachingPendingId = pendingId;
       document.getElementById('teachQuestion').textContent = question;
       document.getElementById('teachResponse').value = '';
+      document.getElementById('teachContextTags').value = ''; // Etiketleri temizle
       document.getElementById('teachModal').classList.add('show');
       document.getElementById('teachResponse').focus();
     }
@@ -2600,6 +2678,12 @@
       const response = document.getElementById('teachResponse').value.trim();
       if (!response || !teachingQuestion || !db) return;
 
+      // Bağlam etiketlerini al ve parse et
+      const tagsInput = document.getElementById('teachContextTags').value.trim();
+      const contextTags = tagsInput
+        ? tagsInput.split(',').map(tag => tag.trim().toLowerCase()).filter(tag => tag.length > 0)
+        : [];
+
       // Öğrenilmiş yanıtı kaydet
       const learnData = {
         question: teachingQuestion.toLowerCase(),
@@ -2607,6 +2691,11 @@
         learnedAt: Date.now(),
         learnedFrom: 'admin_teach'
       };
+
+      // Etiketler varsa ekle
+      if (contextTags.length > 0) {
+        learnData.contextTags = contextTags;
+      }
 
       firebaseService.ref('learned_responses').push(learnData);
 
@@ -2623,41 +2712,11 @@
       }
 
       closeModal('teachModal');
-      toast('Yanıt öğretildi! Bot artık bu soruya cevap verebilir 🎉', 'success');
+      const tagMsg = contextTags.length > 0 ? ` (etiketler: ${contextTags.join(', ')})` : '';
+      toast('Yanıt öğretildi! Bot artık bu soruya cevap verebilir 🎉' + tagMsg, 'success');
 
       teachingQuestion = null;
       teachingPendingId = null;
-    }
-
-    // Alternatif yanıt ekleme fonksiyonları
-    let addingAlternativeQuestion = null;
-
-    function addAlternativeResponse(question) {
-      addingAlternativeQuestion = question;
-      document.getElementById('alternativeQuestion').textContent = question;
-      document.getElementById('alternativeResponse').value = '';
-      document.getElementById('addResponseModal').classList.add('show');
-      document.getElementById('alternativeResponse').focus();
-    }
-
-    function confirmAlternativeResponse() {
-      const response = document.getElementById('alternativeResponse').value.trim();
-      if (!response || !addingAlternativeQuestion || !db) return;
-
-      // Yeni alternatif yanıtı kaydet
-      const learnData = {
-        question: addingAlternativeQuestion.toLowerCase(),
-        response: response,
-        learnedAt: Date.now(),
-        learnedFrom: 'admin_alternative'
-      };
-
-      firebaseService.ref('learned_responses').push(learnData);
-
-      closeModal('addResponseModal');
-      toast('Alternatif yanıt eklendi! Bot artık bu soru için daha fazla cevap seçeneğine sahip 🎉', 'success');
-
-      addingAlternativeQuestion = null;
     }
 
     // Enter ile yanıt gönderme (Shift+Enter = yeni satır, Enter = gönder)
@@ -2665,6 +2724,27 @@
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendManualReply();
+      }
+    });
+
+    // ESC tuşu ile sohbetten çıkış
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        // Önce açık modal var mı kontrol et
+        const openModal = document.querySelector('.modal.show');
+        if (openModal) {
+          openModal.classList.remove('show');
+          return;
+        }
+
+        // Modal yoksa ve sohbet açıksa kapat
+        if (selectedUser) {
+          selectedUser = null;
+          document.getElementById('chatTitle').textContent = '💬 Mesajlar';
+          document.getElementById('messageList').innerHTML = '<div class="empty"><div class="icon">💬</div>Kullanıcı seçin</div>';
+          document.getElementById('replyContainer').style.display = 'none';
+          document.querySelectorAll('.user-item').forEach(item => item.classList.remove('selected'));
+        }
       }
     });
 
@@ -2698,11 +2778,12 @@
     });
 
     // Öğrenilen yanıtı düzenleme fonksiyonları
-    let editingLearnedId = null;
-
     function editLearnedResponse(id) {
-      editingLearnedId = sanitizeSessionId(id);
+      console.log('🔧 editLearnedResponse çağrıldı, ID:', id);
+      editingLearnedId = id;
       const response = learnedResponses[editingLearnedId];
+      console.log('🔧 learnedResponses objesinde arama:', response);
+      console.log('🔧 Tüm learned responses keys:', Object.keys(learnedResponses));
 
       if (response) {
         document.getElementById('editLearnedQuestion').textContent = response.question;
@@ -2715,6 +2796,9 @@
         textarea.style.height = textarea.scrollHeight + 'px';
 
         document.getElementById('editLearnedResponse').focus();
+      } else {
+        console.error('❌ Response bulunamadı! ID:', id);
+        toast('Yanıt bulunamadı!', 'error');
       }
     }
 
@@ -2723,8 +2807,8 @@
 
       if (!newResponse || !editingLearnedId || !db) return;
 
-      const safeEditingLearnedId = sanitizeSessionId(editingLearnedId);
-      firebaseService.ref('learned_responses/' + safeEditingLearnedId + '/response').set(newResponse)
+      // Firebase push key olduğu için sanitize etmeden kullan
+      firebaseService.ref('learned_responses/' + editingLearnedId + '/response').set(newResponse)
         .then(() => {
           closeModal('editLearnedModal');
           toast('Öğrenilmiş yanıt güncellendi!', 'success');
