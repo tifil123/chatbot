@@ -725,11 +725,12 @@
           <input type="tel" id="phoneInput" placeholder="+90 5XX XXX XX XX" maxlength="20"
             oninput="formatPhoneInput(this)" onkeypress="if(event.key==='Enter')submitPhoneNumber()">
         </div>
+        <div style="font-size:0.75rem;color:#64748b;margin-bottom:10px">📝 Örnek: +90 532 123 45 67</div>
         <div class="phone-error" id="phoneError"></div>
         <button class="phone-submit-btn" id="phoneSubmitBtn" onclick="submitPhoneNumber()">
           Sohbete Başla 💬
         </button>
-        <div class="phone-privacy">🔒 Numaranız güvenle saklanır. Örnek: +90 532 123 45 67</div>
+        <div style="font-size:0.85rem;color:#667eea;margin-top:20px;font-weight:500">🔒 Numaranız güvenle saklanır</div>
       </div>
     </div>
     <div class="typing-indicator" id="widgetTyping">
@@ -919,14 +920,52 @@
       console.log('📝 Mesaj:', userMessage);
       console.log('🔑 Anahtar kelimeler:', messageKeywords);
 
-      // Önce tam eşleşme dene
-      const exactMatch = allResponses.find(item =>
+      // Önce tam eşleşmeleri bul (birden fazla olabilir - aynı soru farklı bağlamlar için)
+      const exactMatches = allResponses.filter(item =>
         item.question && item.question.toLowerCase().trim() === messageLower
       );
 
-      if (exactMatch) {
-        console.log('✅ Tam eşleşme bulundu, tek yanıt dönülüyor');
-        return { matches: [exactMatch], unmatchedParts: [] };
+      if (exactMatches.length > 0) {
+        // Tek eşleşme varsa doğrudan döndür
+        if (exactMatches.length === 1) {
+          console.log('✅ Tek tam eşleşme bulundu');
+          return { matches: [exactMatches[0]], unmatchedParts: [] };
+        }
+
+        // Birden fazla eşleşme var - bağlam etiketlerine bak
+        console.log(`🔍 ${exactMatches.length} tam eşleşme bulundu, bağlam etiketleri kontrol ediliyor...`);
+
+        // Tüm yanıtların etiketlerini topla (hangi etiket hangi yanıta ait)
+        const tagToMatch = new Map();
+        for (const match of exactMatches) {
+          const contextTags = match.contextTags || [];
+          for (const tag of contextTags) {
+            tagToMatch.set(tag.toLowerCase(), match);
+          }
+        }
+
+        console.log('🏷️ Tüm etiketler:', Array.from(tagToMatch.keys()));
+
+        // Chat history'yi SONDAN BAŞA doğru tara
+        // En son mesajdaki etiket öncelikli
+        const reversedHistory = [...chatHistory].reverse();
+
+        for (const historyItem of reversedHistory) {
+          const msgText = (historyItem.message || '').toLowerCase();
+          console.log('📜 Kontrol edilen mesaj:', msgText);
+
+          // Bu mesajda herhangi bir etiket var mı?
+          for (const [tag, match] of tagToMatch) {
+            if (msgText.includes(tag)) {
+              console.log(`🏷️ Etiket bulundu: "${tag}" → Bu yanıt seçildi`);
+              return { matches: [match], unmatchedParts: [] };
+            }
+          }
+        }
+
+        // Hiçbir etiket eşleşmedi - ilk yanıtı kullan
+        console.log('⚠️ Bağlam eşleşmesi yok, ilk yanıt kullanılıyor');
+        return { matches: [exactMatches[0]], unmatchedParts: [] };
       }
 
       // Tam eşleşme yoksa, anahtar kelime tabanlı çoklu eşleştirme yap
@@ -1117,11 +1156,28 @@
           .map(([id, msg]) => ({ id, ...msg }))
           .sort((a, b) => a.timestamp - b.timestamp);
 
-        // Her mesajı widget'a ekle
+        // widgetConversationHistory'yi temizle ve yeniden doldur
+        widgetConversationHistory = [];
+
+        // Her mesajı widget'a ekle VE conversation history'ye ekle
         sortedMessages.forEach(msg => {
           const isUser = msg.sender === 'user';
           addWidgetMessage(msg.message, isUser, msg.id, msg.replyTo || null);
+
+          // 🔥 ÖNEMLİ: Mesajları conversation history'ye ekle (bağlam eşleştirmesi için)
+          widgetConversationHistory.push({
+            sender: msg.sender,
+            message: msg.message
+          });
         });
+
+        // Son 10 mesajı tut (çok uzun olmasın)
+        if (widgetConversationHistory.length > 10) {
+          widgetConversationHistory = widgetConversationHistory.slice(-10);
+        }
+
+        console.log('📜 Conversation history yüklendi:', widgetConversationHistory.length, 'mesaj');
+        console.log('📜 History içeriği:', widgetConversationHistory.map(h => h.message?.slice(0, 30)).join(' | '));
 
         // Mesajlar yüklendikten sonra en alta scroll yap
         setTimeout(() => {

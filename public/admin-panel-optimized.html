@@ -1459,6 +1459,45 @@
       return '';
     }
 
+    /**
+     * Telefon numarasını okunabilir formata çevir
+     * +905434575043 -> +90 543 457 50 43
+     * @param {string} phone - Telefon numarası
+     * @returns {string} Formatlanmış telefon numarası
+     */
+    function formatPhoneNumber(phone) {
+      if (!phone || phone === 'telefon yok') return phone || 'telefon yok';
+
+      // Sadece rakamları al
+      const hasPlus = phone.startsWith('+');
+      const digits = phone.replace(/\D/g, '');
+
+      if (digits.length < 10) return phone; // Çok kısa, olduğu gibi döndür
+
+      // Türkiye formatı için özel işlem (90 ile başlıyorsa)
+      if (digits.startsWith('90') && digits.length >= 12) {
+        // +90 5XX XXX XX XX formatı
+        return '+' + digits.slice(0, 2) + ' ' +
+          digits.slice(2, 5) + ' ' +
+          digits.slice(5, 8) + ' ' +
+          digits.slice(8, 10) + ' ' +
+          digits.slice(10, 12);
+      }
+
+      // Genel format: +XX XXX XXX XX XX
+      let formatted = hasPlus ? '+' : '';
+
+      // İlk 2 hane (ülke kodu)
+      formatted += digits.slice(0, 2);
+      if (digits.length > 2) formatted += ' ' + digits.slice(2, 5);
+      if (digits.length > 5) formatted += ' ' + digits.slice(5, 8);
+      if (digits.length > 8) formatted += ' ' + digits.slice(8, 10);
+      if (digits.length > 10) formatted += ' ' + digits.slice(10, 12);
+      if (digits.length > 12) formatted += ' ' + digits.slice(12);
+
+      return formatted;
+    }
+
     window.onload = () => {
       setupUserListEventListeners(); // Event listener'ları bir kez kur
       connectFirebase();
@@ -1638,7 +1677,7 @@
             .replace(/>/g, '&gt;');
         }
         const safeName = escapeHtml(sessions[u.id]?.info?.customName || 'isimsiz');
-        const safePhone = escapeHtml(sessions[u.id]?.info?.phoneNumber || 'telefon yok');
+        const safePhone = escapeHtml(formatPhoneNumber(sessions[u.id]?.info?.phoneNumber || 'telefon yok'));
         const safePreview = escapeHtml(previewText);
 
         // Okunmamış mesaj sayısını hesapla
@@ -1798,7 +1837,8 @@
       console.log('🔍 Messages objesi:', data.messages);
       const userName = sessions[id]?.info?.customName || 'isimsiz';
       const userPhone = sessions[id]?.info?.phoneNumber || '';
-      document.getElementById('chatTitle').innerHTML = `🐰 ${userName}${userPhone ? '<br><span style="font-size:0.8rem;color:#64748b;cursor:text;user-select:text">' + userPhone + '</span>' : ''}`;
+      const formattedPhone = formatPhoneNumber(userPhone);
+      document.getElementById('chatTitle').innerHTML = `🐰 ${userName}${formattedPhone ? '<br><span style="font-size:0.8rem;color:#64748b;cursor:text;user-select:text">' + formattedPhone + '</span>' : ''}`;
       const msgs = Object.entries(data.messages || {}).map(([k, v]) => ({ ...v, id: k })).sort((a, b) => a.timestamp - b.timestamp);
       console.log('🔍 İşlenmiş mesajlar:', msgs);
       console.log('🔍 Mesaj sayısı:', msgs.length);

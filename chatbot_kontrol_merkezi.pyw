@@ -56,6 +56,15 @@ class CommandCenter:
         
         self.create_widgets()
         self.show_category('backup')  # Varsayılan kategori
+    
+    def check_font(self, font_name):
+        """Font sistemde yüklü mü kontrol et"""
+        try:
+            import tkinter.font as tkfont
+            available_fonts = tkfont.families()
+            return font_name in available_fonts
+        except:
+            return False
 
     def create_widgets(self):
         # Ana container
@@ -88,6 +97,7 @@ class CommandCenter:
             ('firebase', '🚀 Firebase', self.colors['warning']),
             ('server', '🌐 Sunucu', self.colors['success']),
             ('git', '📦 Git', '#9b59b6'),
+            ('links', '🔗 Linkler', '#3498db'),
             ('system', '⚙️ Sistem', self.colors['text_muted'])
         ]
         
@@ -144,27 +154,63 @@ class CommandCenter:
         self.buttons_frame = tk.Frame(self.main_area, bg=self.colors['bg'])
         self.buttons_frame.pack(fill='x', padx=20)
         
-        # Alt - Terminal Çıktısı
-        output_label = tk.Label(
-            self.main_area,
-            text="📟 Terminal Çıktısı",
-            font=('Segoe UI', 11, 'bold'),
-            fg=self.colors['text_secondary'],
-            bg=self.colors['bg']
-        )
-        output_label.pack(anchor='w', padx=20, pady=(20, 5))
+        # Alt - Terminal Çıktısı (Modern Stil)
+        terminal_container = tk.Frame(self.main_area, bg=self.colors['card'])
+        terminal_container.pack(fill='both', expand=True, padx=20, pady=(20, 20))
         
+        # Terminal başlık çubuğu
+        terminal_header = tk.Frame(terminal_container, bg='#1e1e2e')
+        terminal_header.pack(fill='x')
+        
+        # Terminal kontrol noktaları (macOS stili)
+        dots_frame = tk.Frame(terminal_header, bg='#1e1e2e')
+        dots_frame.pack(side='left', padx=12, pady=8)
+        
+        for color in ['#ff5f56', '#ffbd2e', '#27ca40']:
+            dot = tk.Label(dots_frame, text='●', font=('Segoe UI', 8), fg=color, bg='#1e1e2e')
+            dot.pack(side='left', padx=2)
+        
+        terminal_title = tk.Label(
+            terminal_header,
+            text="📟 Terminal",
+            font=('Segoe UI', 10, 'bold'),
+            fg='#cdd6f4',
+            bg='#1e1e2e'
+        )
+        terminal_title.pack(side='left', padx=10, pady=8)
+        
+        # Clear butonu
+        clear_btn = tk.Button(
+            terminal_header,
+            text="🗑️ Temizle",
+            font=('Segoe UI', 8),
+            fg='#94a3b8',
+            bg='#1e1e2e',
+            activebackground='#313244',
+            activeforeground='white',
+            border=0,
+            cursor='hand2',
+            command=self.clear_output
+        )
+        clear_btn.pack(side='right', padx=12, pady=5)
+        
+        # Terminal içeriği
         self.output_text = scrolledtext.ScrolledText(
-            self.main_area,
-            font=('Consolas', 10),
-            bg='#0a0a0f',
-            fg='#10b981',
-            insertbackground='white',
+            terminal_container,
+            font=('JetBrains Mono', 10) if self.check_font('JetBrains Mono') else ('Cascadia Code', 10) if self.check_font('Cascadia Code') else ('Consolas', 10),
+            bg='#11111b',
+            fg='#a6e3a1',
+            insertbackground='#f5e0dc',
+            selectbackground='#45475a',
+            selectforeground='#cdd6f4',
             height=12,
             wrap='word',
-            state='disabled'
+            state='disabled',
+            relief='flat',
+            padx=15,
+            pady=10
         )
-        self.output_text.pack(fill='both', expand=True, padx=20, pady=(0, 20))
+        self.output_text.pack(fill='both', expand=True)
         
         # Durum çubuğu
         self.status_bar = tk.Frame(self.main_area, bg=self.colors['card'])
@@ -225,6 +271,8 @@ class CommandCenter:
             self.show_server_menu()
         elif category == 'git':
             self.show_git_menu()
+        elif category == 'links':
+            self.show_links_menu()
         elif category == 'system':
             self.show_system_menu()
     
@@ -357,6 +405,22 @@ class CommandCenter:
             ("📥 Pull", "Uzak depodan çek", self.colors['success'], self.git_pull, 1, 0),
             ("📤 Push", "Uzak depoya gönder", self.colors['warning'], self.git_push, 1, 1),
             ("🔍 Diff", "Değişiklikleri karşılaştır", self.colors['text_muted'], self.git_diff, 2, 0),
+        ]
+        
+        for text, desc, color, cmd, row, col in actions:
+            self.create_action_button(self.buttons_frame, text, desc, color, cmd, row, col)
+    
+    def show_links_menu(self):
+        """Linkler menüsü"""
+        self.category_title.config(text="🔗 Linkler")
+        self.category_desc.config(text="Admin panel ve widget sayfalarına hızlı erişim")
+        
+        self.buttons_frame.columnconfigure(0, weight=1)
+        self.buttons_frame.columnconfigure(1, weight=1)
+        
+        actions = [
+            ("🎛️ Admin Panel", "Canlı sitedeki yönetim panelini aç", self.colors['primary'], self.open_admin_panel, 0, 0),
+            ("💬 Widget Demo", "Canlı sitedeki widget sayfasını aç", self.colors['success'], self.open_widget, 0, 1),
         ]
         
         for text, desc, color, cmd, row, col in actions:
@@ -578,6 +642,26 @@ class CommandCenter:
     def open_browser(self):
         webbrowser.open('http://localhost:8080/admin-panel-optimized.html')
         self.log("🌐 Tarayıcı açılıyor...")
+    
+    # Link açma komutları
+    def open_admin_panel(self):
+        """Admin paneli tarayıcıda aç"""
+        webbrowser.open('https://chatbotdb-be1f7.web.app/admin-panel-optimized.html')
+        self.log("🎛️ Admin Panel açılıyor...")
+        self.status_label.config(text="🎛️ Admin Panel açıldı")
+    
+    def open_widget(self):
+        """Widget demo sayfasını tarayıcıda aç"""
+        webbrowser.open('https://chatbotdb-be1f7.web.app/chatbot-widget-optimized.html')
+        self.log("💬 Widget Demo açılıyor...")
+        self.status_label.config(text="💬 Widget Demo açıldı")
+    
+    def open_localhost(self):
+        """Canlı siteyi aç"""
+        webbrowser.open('https://chatbotdb-be1f7.web.app/')
+        self.log("🌐 Canlı site açılıyor...")
+        self.status_label.config(text="🌐 Canlı site açıldı")
+
     
     # Git komutları
     def git_status(self):
