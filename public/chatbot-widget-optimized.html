@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chatbot Widget Demo</title>
+  <title>Destek Widget</title>
   <!-- UUID Kütüphanesi -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuidv4.min.js"></script>
   <!-- Firebase Service Katmanları -->
@@ -761,7 +761,7 @@
       </div>
     </div>
 
-    <div class="powered-by">Powered by Smart AI</div>
+
   </div>
 
   <script>
@@ -801,18 +801,15 @@
 
       // Eşleşme yoksa null döndür → pending'e düşer
       if (exactMatches.length === 0) {
-        console.log('❌ Tam eşleşme bulunamadı, pending\'e düşecek:', question);
         return null;
       }
 
       // Tek eşleşme varsa doğrudan döndür
       if (exactMatches.length === 1) {
-        console.log('✅ Tam eşleşme bulundu:', exactMatches[0].question);
         return exactMatches[0];
       }
 
-      // Birden fazla TAM eşleşme var - contextTags ve chat history'ye bakarak en uygununu seç
-      console.log(`🔍 ${exactMatches.length} tam eşleşme bulundu, bağlam analizi yapılıyor...`);
+      // Birden fazla TAM eşleşme var - contextTags ve chat history'ye bakarak en uygunu seç
 
       // Son 10 mesajı tek string olarak birleştir
       const historyText = chatHistory
@@ -831,7 +828,6 @@
           for (const tag of contextTags) {
             if (historyText.includes(tag.toLowerCase())) {
               score += 10; // Her etiket eşleşmesi için yüksek puan
-              console.log(`   🏷️ Etiket eşleşti: "${tag}"`);
             }
           }
         }
@@ -850,8 +846,7 @@
           }
         }
 
-        const tagInfo = contextTags.length > 0 ? ` [etiketler: ${contextTags.join(', ')}]` : '';
-        console.log(`   📊 "${match.response?.slice(0, 30)}..."${tagInfo} skoru: ${score}`);
+
 
         if (score > bestScore) {
           bestScore = score;
@@ -861,11 +856,9 @@
 
       // Eğer hiçbir context eşleşmesi yoksa, ilk eşleşmeyi döndür
       if (bestScore === 0) {
-        console.log('⚠️ Bağlam eşleşmesi yok, ilk eşleşme kullanılıyor');
         return exactMatches[0];
       }
 
-      console.log(`✅ En iyi eşleşme seçildi (skor: ${bestScore})`);
       return bestMatch;
     }
 
@@ -916,10 +909,6 @@
       const messageKeywords = extractKeywords(userMessage);
       const allResponses = Object.values(learnedData);
 
-      console.log('🔍 Çoklu eşleştirme başlatılıyor...');
-      console.log('📝 Mesaj:', userMessage);
-      console.log('🔑 Anahtar kelimeler:', messageKeywords);
-
       // Önce tam eşleşmeleri bul (birden fazla olabilir - aynı soru farklı bağlamlar için)
       const exactMatches = allResponses.filter(item =>
         item.question && item.question.toLowerCase().trim() === messageLower
@@ -928,12 +917,10 @@
       if (exactMatches.length > 0) {
         // Tek eşleşme varsa doğrudan döndür
         if (exactMatches.length === 1) {
-          console.log('✅ Tek tam eşleşme bulundu');
           return { matches: [exactMatches[0]], unmatchedParts: [] };
         }
 
         // Birden fazla eşleşme var - bağlam etiketlerine bak
-        console.log(`🔍 ${exactMatches.length} tam eşleşme bulundu, bağlam etiketleri kontrol ediliyor...`);
 
         // Tüm yanıtların etiketlerini topla (hangi etiket hangi yanıta ait)
         const tagToMatch = new Map();
@@ -944,27 +931,22 @@
           }
         }
 
-        console.log('🏷️ Tüm etiketler:', Array.from(tagToMatch.keys()));
-
         // Chat history'yi SONDAN BAŞA doğru tara
         // En son mesajdaki etiket öncelikli
         const reversedHistory = [...chatHistory].reverse();
 
         for (const historyItem of reversedHistory) {
           const msgText = (historyItem.message || '').toLowerCase();
-          console.log('📜 Kontrol edilen mesaj:', msgText);
 
           // Bu mesajda herhangi bir etiket var mı?
           for (const [tag, match] of tagToMatch) {
             if (msgText.includes(tag)) {
-              console.log(`🏷️ Etiket bulundu: "${tag}" → Bu yanıt seçildi`);
               return { matches: [match], unmatchedParts: [] };
             }
           }
         }
 
         // Hiçbir etiket eşleşmedi - ilk yanıtı kullan
-        console.log('⚠️ Bağlam eşleşmesi yok, ilk yanıt kullanılıyor');
         return { matches: [exactMatches[0]], unmatchedParts: [] };
       }
 
@@ -1022,7 +1004,6 @@
               matchScore: matchRatio,
               matchedWords: matchedWords
             });
-            console.log(`✅ Eşleşme bulundu: "${item.question}" (skor: ${matchRatio.toFixed(2)}, kelimeler: ${matchedWords.join(', ')})`);
           }
         }
       }
@@ -1034,11 +1015,9 @@
       const topMatches = matches.slice(0, 2);
 
       if (topMatches.length === 0) {
-        console.log('❌ Hiç eşleşme bulunamadı');
         return { matches: [], unmatchedParts: [userMessage] };
       }
 
-      console.log(`✅ Toplam ${topMatches.length} eşleşme bulundu`);
       return { matches: topMatches, unmatchedParts: [] };
     }
 
@@ -1122,25 +1101,42 @@
     }
 
     /**
-     * Firebase'de telefon numarasına göre session ara
+     * Firebase'de telefon numarasına göre session ara (retry destekli)
      */
-    async function findSessionByPhone(phone) {
-      try {
-        const sessionsData = await firebaseService.read('sessions');
-        if (!sessionsData) return null;
+    async function findSessionByPhone(phone, retryCount = 3) {
+      for (let attempt = 1; attempt <= retryCount; attempt++) {
+        try {
+          console.log(`📱 Session aranıyor (deneme ${attempt}/${retryCount}):`, phone);
+          const sessionsData = await firebaseService.read('sessions');
 
-        // Tüm session'ları dolaş, telefon numarasına göre eşleşen bul
-        for (const [sessionId, sessionData] of Object.entries(sessionsData)) {
-          if (sessionData.info && sessionData.info.phoneNumber === phone) {
-            console.log('✅ Mevcut session bulundu:', sessionId);
-            return { sessionId, sessionData };
+          if (!sessionsData) {
+            console.log('📱 Hiç session yok');
+            return null;
+          }
+
+          // Tüm session'ları dolaş, telefon numarasına göre eşleşen bul
+          for (const [sessionId, sessionData] of Object.entries(sessionsData)) {
+            if (sessionData.info && sessionData.info.phoneNumber === phone) {
+              console.log('✅ Mevcut session bulundu:', sessionId);
+              return { sessionId, sessionData };
+            }
+          }
+
+          console.log('📱 Bu telefona ait session bulunamadı');
+          return null;
+        } catch (error) {
+          console.error(`❌ Session arama hatası (deneme ${attempt}/${retryCount}):`, error);
+
+          if (attempt < retryCount) {
+            // Retry öncesi bekle (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
           }
         }
-        return null;
-      } catch (error) {
-        console.error('❌ Session arama hatası:', error);
-        return null;
       }
+
+      // Tüm denemeler başarısız - null yerine özel değer döndür
+      console.error('❌ Session arama tamamen başarısız oldu');
+      return { error: 'search_failed' };
     }
 
     /**
@@ -1373,6 +1369,12 @@
             document.getElementById('widgetInput').disabled = false;
             document.getElementById('widgetSendBtn').disabled = false;
 
+          } else if (existingSession && existingSession.error === 'search_failed') {
+            // Session arama başarısız oldu - yeni session OLUŞTURMA, hata göster
+            console.error('❌ Session arama başarısız, sayfayı yenileyin');
+            hidePhoneForm();
+            addWidgetMessage('⚠️ Bağlantı sorunu yaşandı. Lütfen sayfayı yenileyin.', false);
+
           } else {
             // Telefon var ama session yok - yeni session oluştur
             widgetSessionId = await firebaseService.createUniqueSessionId();
@@ -1603,45 +1605,87 @@
             return; // Otomatik yanıt verme, admin halleder
           }
 
+          // ⏰ ZAMANLANMIŞ MESAJ KONTROLÜ
+          // Admin panelinde belirlenen saat aralıklarında sabit mesaj gönder
+          try {
+            const scheduledData = await firebaseService.read('scheduled_messages');
+            if (scheduledData) {
+              const now = new Date();
+              const currentMinutes = now.getHours() * 60 + now.getMinutes(); // Dakika cinsinden
+
+              for (const [ruleId, rule] of Object.entries(scheduledData)) {
+                if (rule.enabled === false) continue; // Devre dışı kuralı atla
+                if (!rule.startTime || !rule.endTime || !rule.message) continue;
+
+                const [startH, startM] = rule.startTime.split(':').map(Number);
+                const [endH, endM] = rule.endTime.split(':').map(Number);
+                const startMinutes = startH * 60 + startM;
+                const endMinutes = endH * 60 + endM;
+
+                let inRange = false;
+                if (startMinutes <= endMinutes) {
+                  // Normal aralık (örn: 09:00 - 18:00)
+                  inRange = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+                } else {
+                  // Gece geçişli aralık (örn: 22:00 - 06:00)
+                  inRange = currentMinutes >= startMinutes || currentMinutes < endMinutes;
+                }
+
+                if (inRange) {
+                  console.log('⏰ Zamanlanmış mesaj kuralı eşleşti:', rule.startTime, '-', rule.endTime);
+                  hideWidgetTyping();
+
+                  // Kullanıcının mesajına replyTo oluştur
+                  const userMsgReplyTo = {
+                    messageId: 'user_' + Date.now(),
+                    message: text.slice(0, 50),
+                    sender: 'user'
+                  };
+
+                  addWidgetMessage(rule.message, false, null, userMsgReplyTo);
+                  await firebaseService.push('sessions/' + widgetSessionId + '/messages', {
+                    sender: 'bot',
+                    message: rule.message,
+                    timestamp: Date.now(),
+                    auto: true,
+                    scheduled: true,
+                    replyTo: userMsgReplyTo
+                  });
+
+                  widgetConversationHistory.push({ sender: 'bot', message: rule.message });
+                  if (widgetConversationHistory.length > 10) widgetConversationHistory.shift();
+                  return; // Zamanlanmış mesaj gönderildi, normal akışa devam etme
+                }
+              }
+            }
+          } catch (schedErr) {
+            console.error('⏰ Zamanlanmış mesaj kontrol hatası:', schedErr);
+            // Hata olsa bile normal akışa devam et
+          }
+
           const learnedData = await firebaseService.read('learned_responses');
 
-          // Çoklu soru algılama - birden fazla eşleşme arayabilir
-          const { matches, unmatchedParts } = findAllMatches(text, learnedData, widgetConversationHistory);
+          // Tek eşleşme ara
+          const bestMatch = findBestMatch(text, learnedData, widgetConversationHistory);
 
           hideWidgetTyping();
 
-          if (matches.length > 0) {
-            // Eşleşme(ler) bulundu
-            let combinedResponse;
-
-            if (matches.length === 1) {
-              // Tek eşleşme - normal yanıt
-              combinedResponse = matches[0].response;
-            } else {
-              // Birden fazla eşleşme - yanıtları birleştir
-              combinedResponse = matches.map((m, index) => {
-                return `${index + 1}. ${m.response}`;
-              }).join('\n\n');
-              console.log(`📝 ${matches.length} yanıt birleştirildi`);
-            }
-
-            // Kullanıcının mesajına replyTo oluştur
+          if (bestMatch) {
+            // Eşleşme bulundu
             const userMsgReplyTo = {
-              messageId: 'user_' + Date.now(),  // Widget'ta msgId olmayabilir, benzersiz ID oluştur
+              messageId: 'user_' + Date.now(),
               message: text.slice(0, 50),
               sender: 'user'
             };
 
-            addWidgetMessage(combinedResponse, false, null, userMsgReplyTo);
-            // ⚠️ DÜZELTME: write yerine push kullanılmalı - write tüm mesajları siliyor!
+            addWidgetMessage(bestMatch.response, false, null, userMsgReplyTo);
             await firebaseService.push('sessions/' + widgetSessionId + '/messages', {
               sender: 'bot',
-              message: combinedResponse,
+              message: bestMatch.response,
               timestamp: Date.now(),
               auto: true,
               learned: true,
-              multiMatch: matches.length > 1,  // Çoklu eşleşme flag'i
-              replyTo: userMsgReplyTo  // Kullanıcı mesajına yanıt referansı
+              replyTo: userMsgReplyTo
             });
           } else {
             // Yanıt bulunamadı - pending'e kaydet
@@ -1723,7 +1767,7 @@
       const senderEl = document.getElementById('widgetReplySender');
       const textEl = document.getElementById('widgetReplyText');
 
-      senderEl.textContent = sender === 'user' ? '👤 Kendinize yanıt' : '🤖 Bot yanıtı';
+      senderEl.textContent = sender === 'user' ? '👤 Kendinize yanıt' : '💬 Mesaja yanıt';
       textEl.textContent = (message || '').slice(0, 40) + ((message || '').length > 40 ? '...' : '');
       preview.classList.add('show');
 

@@ -1031,6 +1031,194 @@
       opacity: 0.9;
       transform: translateY(-1px)
     }
+
+    /* Zamanlanmış Mesajlar Stilleri */
+    .scheduled-card {
+      background: #1e1e2e;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 15px;
+      border: 1px solid #2a2a3a
+    }
+
+    .scheduled-card h3 {
+      font-size: 1rem;
+      color: #e2e8f0;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px
+    }
+
+    .schedule-form {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      margin-bottom: 15px;
+      padding: 15px;
+      background: #0a0a0f;
+      border-radius: 10px;
+      border: 1px solid #2a2a3a
+    }
+
+    .schedule-form .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px
+    }
+
+    .schedule-form label {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      font-weight: 600
+    }
+
+    .schedule-form input[type="time"] {
+      padding: 8px 12px;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      background: #1e1e2e;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      min-width: 120px
+    }
+
+    .schedule-form input[type="time"]:focus {
+      border-color: #667eea;
+      outline: none
+    }
+
+    .schedule-form textarea {
+      padding: 8px 12px;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      background: #1e1e2e;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      min-height: 40px;
+      resize: none;
+      flex: 1;
+      min-width: 200px;
+      font-family: inherit;
+      overflow: hidden
+    }
+
+    .schedule-form textarea:focus {
+      border-color: #667eea;
+      outline: none
+    }
+
+    .schedule-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 15px;
+      background: #0a0a0f;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      border-left: 4px solid #667eea;
+      gap: 12px;
+      transition: transform 0.15s, box-shadow 0.15s
+    }
+
+    .schedule-item:hover {
+      transform: translateX(3px);
+      box-shadow: 0 2px 10px rgba(102, 126, 234, 0.15)
+    }
+
+    .schedule-item .schedule-time {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #667eea;
+      white-space: nowrap
+    }
+
+    .schedule-item .schedule-msg {
+      flex: 1;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .schedule-item .schedule-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0
+    }
+
+    .schedule-item .schedule-actions button {
+      padding: 5px 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      transition: opacity 0.15s
+    }
+
+    .schedule-item .schedule-actions button:hover {
+      opacity: 0.8
+    }
+
+    .schedule-item .schedule-actions .edit-btn {
+      background: #667eea;
+      color: #fff
+    }
+
+    .schedule-item .schedule-actions .delete-btn {
+      background: #ef4444;
+      color: #fff
+    }
+
+    .schedule-toggle {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0
+    }
+
+    .schedule-toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0
+    }
+
+    .schedule-toggle .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #3a3a4a;
+      border-radius: 22px;
+      transition: 0.3s
+    }
+
+    .schedule-toggle .slider::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 3px;
+      bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: 0.3s
+    }
+
+    .schedule-toggle input:checked+.slider {
+      background: #10b981
+    }
+
+    .schedule-toggle input:checked+.slider::before {
+      transform: translateX(18px)
+    }
   </style>
 </head>
 
@@ -1091,7 +1279,7 @@
 
     <main class="main">
       <div class="tabs">
-        <div class="tab active" onclick="switchTab('config')">⚙️ Ayarlar</div>
+        <div class="tab active" onclick="switchTab('config')">💻 Sistem Durumu</div>
         <div class="tab" onclick="switchTab('pending')">
           ❗ Bekleyen Sorular
           <span class="notif" id="pendingNotif">0</span>
@@ -1102,7 +1290,6 @@
       <div class="tab-content active" id="tab-config">
 
         <div class="card">
-          <h3>📊 Sistem Durumu</h3>
           <div style="font-size:0.85rem;color:#94a3b8;line-height:2">
             <b>Bağlantı:</b> <span id="connStatus">Bağlı değil</span><br>
             <b>Aktif Kullanıcı:</b> <span id="activeUsers">0</span><br>
@@ -1111,16 +1298,36 @@
           </div>
         </div>
 
-        <div class="card">
-          <h3>💡 Nasıl Çalışır?</h3>
-          <ul style="font-size:0.85rem;color:#94a3b8;line-height:2;list-style:none;padding:0">
-            <li>1️⃣ Kullanıcı soru sorar</li>
-            <li>2️⃣ Bot cevap bilmiyorsa sessiz kalır</li>
-            <li>3️⃣ "Bekleyen Sorular" sekmesinde görürsün</li>
-            <li>4️⃣ "Devir Al" ile manuel yanıt verirsin</li>
-            <li>5️⃣ Bot soruyu ve yanıtı öğrenir</li>
-            <li>6️⃣ Aynı soru tekrar sorulunca otomatik cevap verir</li>
-          </ul>
+        <!-- Zamanlanmış Mesajlar Kartı -->
+        <div class="scheduled-card">
+          <h3>⏰ Zamanlanmış Mesajlar</h3>
+          <p style="font-size:0.8rem;color:#64748b;margin-bottom:15px;line-height:1.5">
+            Belirlediğiniz saat aralıklarında, kullanıcı ne yazarsa yazsın chatbot aşağıdaki mesajı gönderir.
+          </p>
+          <div class="schedule-form" id="scheduleForm">
+            <div class="form-group">
+              <label>⏱️ Başlangıç</label>
+              <input type="time" id="scheduleStart" value="09:00">
+            </div>
+            <div class="form-group">
+              <label>⏱️ Bitiş</label>
+              <input type="time" id="scheduleEnd" value="18:00">
+            </div>
+            <div style="width:100%">
+              <label style="font-size:0.75rem;color:#94a3b8;font-weight:600;display:block;margin-bottom:5px">💬
+                Mesaj</label>
+              <textarea id="scheduleMessage" placeholder="Bu saatlerde gönderilecek mesajı yazın..."
+                style="width:100%;padding:8px 12px;border:1px solid #2a2a3a;border-radius:8px;background:#1e1e2e;color:#e2e8f0;font-size:0.85rem;min-height:40px;resize:none;font-family:inherit;overflow:hidden;box-sizing:border-box"
+                oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+            </div>
+            <button class="btn btn-success" onclick="addScheduledMessage()" style="height:38px;margin-left:auto">➕
+              Ekle</button>
+          </div>
+          <div id="scheduledList">
+            <div class="empty" style="padding:20px;font-size:0.85rem">
+              <div class="icon">⏰</div>Henüz zamanlanmış mesaj yok
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1321,6 +1528,7 @@
     let sessions = {};
     let pendingQuestions = {};
     let learnedResponses = {};
+    let scheduledMessages = {};
     let selectedUser = null;
     let lastManualReply = {};
 
@@ -1334,6 +1542,13 @@
 
     // Düzenleme için global değişkenler
     let editingLearnedId = null;  // Düzenlenen öğrenilmiş yanıt ID'si
+    let editingScheduleId = null; // Düzenlenen zamanlanmış mesaj ID'si
+
+    // Sürükle-bırak için global değişkenler (initResizers'dan önce tanımlanmalı)
+    let isResizing = false;
+    let currentResizer = null;
+    let startX = 0;
+    let startWidth = 0;
 
     // 🚀 PERFORMANS: Debounced render fonksiyonları (150ms gecikmeli)
     const debouncedRenderUsers = debounce(() => renderUsers(), 150);
@@ -1349,7 +1564,6 @@
       const item = e.target.closest('.user-item');
       if (!item || !userList.contains(item)) return;
 
-      console.log('🔧 GLOBAL contextmenu event tetiklendi!');
       e.preventDefault();
 
       let sessionId = item.getAttribute('data-session-id');
@@ -1501,32 +1715,23 @@
     window.onload = () => {
       setupUserListEventListeners(); // Event listener'ları bir kez kur
       connectFirebase();
+      initResizers(); // Sidebar boyutlandırma özelliğini aktifleştir
     };
 
     function connectFirebase() {
       try {
-        // Debug için kullanılan Firebase URL'ini kontrol et
+        // Firebase'e bağlan
         const activeConfig = window.FirebaseConfig?.getActiveConfig?.();
-        console.log('🔗 Admin panel kullanılan Firebase URL:', activeConfig?.databaseURL);
-        console.log('🔥 Firebase apps count (bağlantı öncesi):', firebase.apps.length);
-
-        // Debug: Firebase URL'sini localStorage'a yaz
-        localStorage.setItem('adminFirebaseUrl', activeConfig?.databaseURL);
-        console.log('🔗 Admin panel Firebase URL localStorage\'a yazıldı:', activeConfig?.databaseURL);
 
         // Firebase Service katmanını kullanarak bağlan
         firebaseService.connect().then(database => {
           db = database;
-          console.log('🔥 Firebase apps count (bağlantı sonrası):', firebase.apps.length);
-          console.log('✅ Admin panel Firebase bağlantısı başarılı');
         }).catch(error => {
           console.error('❌ Admin panel Firebase bağlantı hatası:', error);
         });
 
         // Sessions
         firebaseService.subscribe('sessions', s => {
-          console.log('🔍 Sessions listener tetiklendi!');
-          console.log('🔍 Toplam session sayısı:', s.numChildren());
 
           sessions = {};
           s.forEach(c => {
@@ -1585,6 +1790,13 @@
           const searchInput = document.getElementById('searchLearned');
           const searchTerm = searchInput ? searchInput.value : '';
           renderLearned(searchTerm);
+        });
+
+        // Scheduled messages
+        firebaseService.subscribe('scheduled_messages', s => {
+          scheduledMessages = {};
+          s.forEach(c => { scheduledMessages[c.key] = c.val() });
+          renderScheduledMessages();
         });
 
         document.getElementById('statusDot').classList.add('on');
@@ -2916,15 +3128,9 @@
     }
 
     // Sürükle-bırak ile panel genişletme/daraltma
-    let isResizing = false;
-    let currentResizer = null;
-    let startX = 0;
-    let startWidth = 0;
+    // Değişkenler yukarıda (script başında) tanımlı
 
-    // Sayfa yüklendiğinde sürükle-bırak olay dinleyicilerini ekle
-    window.addEventListener('load', function () {
-      initResizers();
-    });
+    // initResizers() artık window.onload içinden çağrılıyor
 
     function initResizers() {
       const sidebarResizer = document.querySelector('.sidebar-resizer');
@@ -3024,6 +3230,129 @@
     window.addEventListener('resize', function () {
       adjustMainPanel();
     });
+
+    // ============ ZAMANLANMIŞ MESAJLAR ============
+
+
+    function renderScheduledMessages() {
+      const container = document.getElementById('scheduledList');
+      const items = Object.entries(scheduledMessages);
+
+      if (!items.length) {
+        container.innerHTML = '<div class="empty" style="padding:20px;font-size:0.85rem"><div class="icon">⏰</div>Henüz zamanlanmış mesaj yok</div>';
+        return;
+      }
+
+      container.innerHTML = items.map(([id, rule]) => {
+        const enabledChecked = rule.enabled !== false ? 'checked' : '';
+        const msgPreview = (rule.message || '').length > 60 ? rule.message.slice(0, 60) + '...' : rule.message;
+        const borderColor = rule.enabled !== false ? '#667eea' : '#3a3a4a';
+        return `
+          <div class="schedule-item" style="border-left-color:${borderColor}">
+            <label class="schedule-toggle">
+              <input type="checkbox" ${enabledChecked} onchange="toggleScheduledMessage('${id}', this.checked)">
+              <span class="slider"></span>
+            </label>
+            <div class="schedule-time">🕐 ${rule.startTime || '00:00'} - ${rule.endTime || '23:59'}</div>
+            <div class="schedule-msg">💬 ${msgPreview || 'Mesaj yok'}</div>
+            <div class="schedule-actions">
+              <button class="edit-btn" onclick="editScheduledMessage('${id}')">✏️ Düzenle</button>
+              <button class="delete-btn" onclick="deleteScheduledMessage('${id}')">🗑️ Sil</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function addScheduledMessage() {
+      const startEl = document.getElementById('scheduleStart');
+      const endEl = document.getElementById('scheduleEnd');
+      const msgEl = document.getElementById('scheduleMessage');
+
+      const startTime = startEl.value;
+      const endTime = endEl.value;
+      const message = msgEl.value.trim();
+
+      if (!startTime || !endTime) {
+        toast('Başlangıç ve bitiş saati seçin!', 'error');
+        return;
+      }
+      if (!message) {
+        toast('Mesaj yazın!', 'error');
+        return;
+      }
+
+      try {
+        const data = {
+          startTime,
+          endTime,
+          message,
+          enabled: true,
+          createdAt: Date.now()
+        };
+
+        if (editingScheduleId) {
+          // Düzenleme modu
+          await firebaseService.update('scheduled_messages/' + editingScheduleId, data);
+          toast('Zamanlanmış mesaj güncellendi!', 'success');
+          editingScheduleId = null;
+          document.querySelector('#scheduleForm .btn-success').textContent = '➕ Ekle';
+        } else {
+          // Yeni ekleme
+          await firebaseService.push('scheduled_messages', data);
+          toast('Zamanlanmış mesaj eklendi!', 'success');
+        }
+
+        // Formu temizle
+        startEl.value = '09:00';
+        endEl.value = '18:00';
+        msgEl.value = '';
+      } catch (error) {
+        console.error('❌ Zamanlanmış mesaj kaydetme hatası:', error);
+        toast('Kaydetme hatası: ' + error.message, 'error');
+      }
+    }
+
+    function editScheduledMessage(id) {
+      const rule = scheduledMessages[id];
+      if (!rule) return;
+
+      document.getElementById('scheduleStart').value = rule.startTime || '09:00';
+      document.getElementById('scheduleEnd').value = rule.endTime || '18:00';
+      const msgEl = document.getElementById('scheduleMessage');
+      msgEl.value = rule.message || '';
+      msgEl.style.height = 'auto';
+      msgEl.style.height = msgEl.scrollHeight + 'px';
+
+      editingScheduleId = id;
+      document.querySelector('#scheduleForm .btn-success').textContent = '✅ Güncelle';
+
+      // Forma scroll et
+      document.getElementById('scheduleForm').scrollIntoView({ behavior: 'smooth' });
+      toast('Düzenleme modu - değişiklik yapıp "Güncelle" butonuna basın', 'info');
+    }
+
+    async function deleteScheduledMessage(id) {
+      if (!confirm('Bu zamanlanmış mesajı silmek istediğinize emin misiniz?')) return;
+
+      try {
+        await firebaseService.remove('scheduled_messages/' + id);
+        toast('Zamanlanmış mesaj silindi!', 'success');
+      } catch (error) {
+        console.error('❌ Zamanlanmış mesaj silme hatası:', error);
+        toast('Silme hatası: ' + error.message, 'error');
+      }
+    }
+
+    async function toggleScheduledMessage(id, enabled) {
+      try {
+        await firebaseService.update('scheduled_messages/' + id, { enabled });
+        toast(enabled ? 'Kural aktifleştirildi' : 'Kural devre dışı bırakıldı', 'success');
+      } catch (error) {
+        console.error('❌ Toggle hatası:', error);
+        toast('Hata: ' + error.message, 'error');
+      }
+    }
   </script>
 </body>
 

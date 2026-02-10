@@ -347,11 +347,10 @@ class CommandCenter:
         self.buttons_frame.columnconfigure(1, weight=1)
         
         actions = [
-            ("💾 Yedekle", "Değişiklikleri GitHub'a yükle", self.colors['primary'], self.backup_push, 0, 0),
-            ("🔄 Güncelle", "GitHub'dan güncel dosyaları çek", self.colors['success'], self.backup_pull, 0, 1),
-            ("🔍 Kontrol Et", "Git durumunu kontrol et", self.colors['warning'], self.backup_status, 1, 0),
-            ("⚙️ Yedekleme Sistemi", "Otomatik yedekleme sistemini çalıştır", '#9b59b6', self.backup_system, 1, 1),
-        ]
+        ("💾 Yedekle", "Değişiklikleri GitHub'a yükle", self.colors['primary'], self.backup_push, 0, 0),
+        ("🔄 Güncelle", "GitHub'dan güncel dosyaları çek", self.colors['success'], self.backup_pull, 0, 1),
+        ("⚙️ Yedekleme Sistemi", "Otomatik yedekleme sistemini çalıştır", '#9b59b6', self.backup_system, 1, 0),
+    ]
         
         for text, desc, color, cmd, row, col in actions:
             self.create_action_button(self.buttons_frame, text, desc, color, cmd, row, col)
@@ -365,11 +364,8 @@ class CommandCenter:
         self.buttons_frame.columnconfigure(1, weight=1)
         
         actions = [
-            ("🚀 Deploy", "Canlı siteye yayınla", self.colors['warning'], self.firebase_deploy, 0, 0),
-            ("🔐 Login", "Firebase'e giriş yap", self.colors['primary'], self.firebase_login, 0, 1),
-            ("🌐 Serve", "Lokal önizleme başlat", self.colors['success'], self.firebase_serve, 1, 0),
-            ("📋 Projeler", "Firebase projelerini listele", self.colors['text_muted'], self.firebase_projects, 1, 1),
-        ]
+        ("🚀 Deploy", "Canlı siteye yayınla", self.colors['warning'], self.firebase_deploy, 0, 0),
+    ]
         
         for text, desc, color, cmd, row, col in actions:
             self.create_action_button(self.buttons_frame, text, desc, color, cmd, row, col)
@@ -400,12 +396,9 @@ class CommandCenter:
         self.buttons_frame.columnconfigure(1, weight=1)
         
         actions = [
-            ("📊 Status", "Değişiklikleri görüntüle", self.colors['primary'], self.git_status, 0, 0),
-            ("📜 Log", "Son 10 commit'i göster", '#9b59b6', self.git_log, 0, 1),
-            ("📥 Pull", "Uzak depodan çek", self.colors['success'], self.git_pull, 1, 0),
-            ("📤 Push", "Uzak depoya gönder", self.colors['warning'], self.git_push, 1, 1),
-            ("🔍 Diff", "Değişiklikleri karşılaştır", self.colors['text_muted'], self.git_diff, 2, 0),
-        ]
+        ("📥 Pull", "Uzak depodan çek", self.colors['success'], self.git_pull, 0, 0),
+        ("📤 Push", "Uzak depoya gönder", self.colors['warning'], self.git_push, 0, 1),
+    ]
         
         for text, desc, color, cmd, row, col in actions:
             self.create_action_button(self.buttons_frame, text, desc, color, cmd, row, col)
@@ -435,11 +428,9 @@ class CommandCenter:
         self.buttons_frame.columnconfigure(1, weight=1)
         
         actions = [
-            ("📁 Klasörü Aç", "Proje klasörünü dosya gezgininde aç", self.colors['primary'], self.open_folder, 0, 0),
-            ("💻 VS Code", "Projeyi VS Code'da aç", '#007acc', self.open_vscode, 0, 1),
-            ("🖥️ Terminal", "Yeni terminal penceresi aç", self.colors['text_muted'], self.open_terminal, 1, 0),
-            ("🧹 Cache Temizle", "Geçici dosyaları temizle", self.colors['danger'], self.clear_cache, 1, 1),
-        ]
+        ("💻 VS Code", "Projeyi VS Code'da aç", '#007acc', self.open_vscode, 0, 0),
+        ("🧹 Cache Temizle", "Geçici dosyaları temizle", self.colors['danger'], self.clear_cache, 0, 1),
+    ]
         
         for text, desc, color, cmd, row, col in actions:
             self.create_action_button(self.buttons_frame, text, desc, color, cmd, row, col)
