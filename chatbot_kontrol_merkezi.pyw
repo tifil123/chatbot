@@ -640,13 +640,13 @@ class CommandCenter:
     # Link açma komutları
     def open_admin_panel(self):
         """Admin paneli tarayıcıda aç"""
-        webbrowser.open('http://localhost:8080/admin-panel-optimized.html')
+        webbrowser.open('https://tifil123.github.io/chatbot/admin-panel-optimized.html')
         self.log("🎛️ Admin Panel açılıyor...")
         self.status_label.config(text="🎛️ Admin Panel açıldı")
     
     def open_widget(self):
         """Widget demo sayfasını tarayıcıda aç"""
-        webbrowser.open('http://localhost:8080/chatbot-widget-optimized.html')
+        webbrowser.open('https://tifil123.github.io/chatbot/chatbot-widget-optimized.html')
         self.log("💬 Widget Demo açılıyor...")
         self.status_label.config(text="💬 Widget Demo açıldı")
 
