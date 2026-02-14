@@ -202,6 +202,8 @@ class SupabaseService {
                 learned: msg.learned || false,
                 scheduled: msg.scheduled || false,
                 replyTo: msg.reply_to || null,
+                mediaUrl: msg.media_url || null,
+                mediaType: msg.media_type || null,
             };
         });
 
@@ -240,6 +242,8 @@ class SupabaseService {
             learned: row.learned || false,
             scheduled: row.scheduled || false,
             replyTo: row.reply_to || null,
+            mediaUrl: row.media_url || null,
+            mediaType: row.media_type || null,
         };
     }
 
