@@ -7,9 +7,11 @@
   <title>Destek Widget</title>
   <!-- UUID Kütüphanesi -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuidv4.min.js"></script>
-  <!-- Firebase Service Katmanları -->
-  <script src="config/firebase-config.js"></script>
-  <script src="services/firebase-service.js"></script>
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase Service Katmanları -->
+  <script src="config/supabase-config.js"></script>
+  <script src="services/supabase-service.js"></script>
   <style>
     /* DEMO SAYFA STİLİ */
     body {
@@ -737,7 +739,7 @@
       <span></span><span></span><span></span>
     </div>
 
-    <div class="chat-input-area">
+    <div class="chat-input-area" id="chatInputArea" style="display:none">
       <div style="padding-bottom:10px;border-bottom:1px solid #e9ecef;margin-bottom:10px" id="configArea">
         <div style="padding:10px;background:#f8f9fa;border-radius:8px;margin-bottom:8px">
           <div style="font-size:0.75rem;color:#6c757d;margin-bottom:3px">Firebase Database:</div>
@@ -1090,6 +1092,8 @@
     function hidePhoneForm() {
       const form = document.getElementById('phoneFormContainer');
       if (form) form.classList.add('hidden');
+      const inputArea = document.getElementById('chatInputArea');
+      if (inputArea) inputArea.style.display = '';
     }
 
     /**
@@ -1316,21 +1320,20 @@
 
     async function connectWidgetFirebaseWithUrl(url) {
       try {
-        // Config dosyasından URL al veya verilen URL'i kullan
-        const firebaseUrl = url || window.FirebaseConfig?.getActiveConfig?.()?.databaseURL;
+        // Supabase config'i al
+        const supabaseConfig = window.SupabaseConfig?.getActiveConfig?.() || window.SupabaseConfig?.SUPABASE_CONFIG;
 
-        if (!firebaseUrl) {
-          console.error('❌ Firebase URL bulunamadı! Config dosyası yüklenmemiş olabilir.');
+        if (!supabaseConfig) {
+          console.error('❌ Supabase config bulunamadı! Config dosyası yüklenmemiş olabilir.');
           return;
         }
 
-        console.log('🔗 Widget Firebase bağlantısı kuruluyor:', firebaseUrl);
+        console.log('🔗 Widget Supabase bağlantısı kuruluyor:', supabaseConfig.url);
 
-        // Firebase Service katmanını kullanarak bağlan
-        const config = { databaseURL: firebaseUrl };
-        widgetDb = await firebaseService.connect(config);
+        // Supabase Service katmanını kullanarak bağlan
+        widgetDb = await firebaseService.connect(supabaseConfig);
 
-        console.log('🔥 Firebase bağlandı');
+        console.log('🔥 Supabase bağlandı');
 
         // Config alanını gizle
         const configArea = document.getElementById('configArea');
@@ -1407,18 +1410,18 @@
         }
 
       } catch (e) {
-        console.error('Widget Firebase bağlantı hatası:', e);
+        console.error('Widget Supabase bağlantı hatası:', e);
       }
     }
 
     // Geriye dönük uyumluluk için eski fonksiyonu koru
     function connectWidgetFirebase() {
-      // Bu fonksiyon artık config üzerinden çalışır
-      const firebaseUrl = window.FirebaseConfig?.getActiveConfig?.()?.databaseURL;
-      if (firebaseUrl) {
-        connectWidgetFirebaseWithUrl(firebaseUrl);
+      // Bu fonksiyon artık Supabase config üzerinden çalışır
+      const supabaseConfig = window.SupabaseConfig?.getActiveConfig?.();
+      if (supabaseConfig) {
+        connectWidgetFirebaseWithUrl();
       } else {
-        console.error('❌ Firebase URL bulunamadı!');
+        console.error('❌ Supabase config bulunamadı!');
       }
     }
 
@@ -1516,8 +1519,8 @@
       // Firebase'e kaydet - firebaseService kullanarak
       console.log('📤 Mesaj gönderiliyor:', text);
       console.log('📤 Session ID:', widgetSessionId);
-      const firebaseUrl = window.FirebaseConfig?.getActiveConfig?.()?.databaseURL;
-      console.log('📤 Firebase URL:', firebaseUrl);
+      const supabaseUrl = window.SupabaseConfig?.getActiveConfig?.()?.url;
+      console.log('📤 Supabase URL:', supabaseUrl);
 
       try {
         // Önce session'ın var olduğundan emin ol
@@ -1722,28 +1725,24 @@
       }
     });
 
-    // Otomatik Firebase bağlantısı
+    // Otomatik Supabase bağlantısı
     window.addEventListener('load', () => {
       console.log('🚀 Widget yükleniyor...');
 
-      // Firebase URL'sini config'den al
-      const firebaseUrl = window.FirebaseConfig?.getActiveConfig?.()?.databaseURL;
-      console.log('🔗 Widget Firebase URL:', firebaseUrl);
+      // Supabase config'i al
+      const supabaseConfig = window.SupabaseConfig?.getActiveConfig?.();
+      console.log('🔗 Widget Supabase URL:', supabaseConfig?.url);
 
-      // Debug: Firebase URL'sini localStorage'a yaz
-      localStorage.setItem('widgetFirebaseUrl', firebaseUrl);
-      console.log('🔗 Widget Firebase URL localStorage\'a yazıldı:', firebaseUrl);
-
-      if (firebaseUrl) {
-        connectWidgetFirebaseWithUrl(firebaseUrl);
+      if (supabaseConfig) {
+        connectWidgetFirebaseWithUrl();
 
         // Display'da göster
         const displayElement = document.getElementById('firebaseUrlDisplay');
         if (displayElement) {
-          displayElement.textContent = firebaseUrl;
+          displayElement.textContent = supabaseConfig.url;
         }
       } else {
-        console.error('❌ Firebase URL bulunamadı! Config dosyası yüklenmemiş olabilir.');
+        console.error('❌ Supabase config bulunamadı! Config dosyası yüklenmemiş olabilir.');
 
         // Display'da hata göster
         const displayElement = document.getElementById('firebaseUrlDisplay');

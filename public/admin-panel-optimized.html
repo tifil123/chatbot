@@ -1498,9 +1498,11 @@
 
   <!-- UUID Kütüphanesi -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuidv4.min.js"></script>
-  <!-- Firebase Service Katmanları -->
-  <script src="config/firebase-config.js"></script>
-  <script src="services/firebase-service.js"></script>
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase Service Katmanları -->
+  <script src="config/supabase-config.js"></script>
+  <script src="services/supabase-service.js"></script>
 
   <script>
     // 🚀 PERFORMANS: Debug modunu kapat - production için false yap
@@ -1720,14 +1722,14 @@
 
     function connectFirebase() {
       try {
-        // Firebase'e bağlan
-        const activeConfig = window.FirebaseConfig?.getActiveConfig?.();
+        // Supabase'e bağlan
+        const activeConfig = window.SupabaseConfig?.getActiveConfig?.();
 
-        // Firebase Service katmanını kullanarak bağlan
+        // Supabase Service katmanını kullanarak bağlan
         firebaseService.connect().then(database => {
           db = database;
         }).catch(error => {
-          console.error('❌ Admin panel Firebase bağlantı hatası:', error);
+          console.error('❌ Admin panel Supabase bağlantı hatası:', error);
         });
 
         // Sessions
@@ -1802,9 +1804,9 @@
         document.getElementById('statusDot').classList.add('on');
         document.getElementById('statusText').textContent = ' Bağlı';
         document.getElementById('connStatus').textContent = ' Bağlı';
-        toast('Firebase bağlandı!', 'success');
+        toast('Supabase bağlandı!', 'success');
       } catch (e) {
-        toast('Firebase bağlantı hatası: ' + e.message, 'error');
+        toast('Supabase bağlantı hatası: ' + e.message, 'error');
       }
     }
 
@@ -2647,7 +2649,9 @@
       console.log('🔍 DEBUG: Bekleyen sorular render ediliyor...');
       console.log('🔍 DEBUG: Render edilecek item sayısı:', list.length);
 
-      el.innerHTML = list.map(([id, q], index) => {
+      el.innerHTML = `<div style="display:flex;justify-content:flex-end;padding:8px 5px;margin-bottom:5px">
+        <button class="btn btn-danger" onclick="deleteAllPending()" style="font-size:0.75rem;padding:6px 14px">🗑️ Tümünü Sil (${list.length})</button>
+      </div>` + list.map(([id, q], index) => {
         console.log(`🔍 DEBUG: Rendering item ${index}:`, q);
         return `
     <div class="pending-item">
@@ -2708,6 +2712,31 @@
       if (db) firebaseService.ref('pending_questions/' + id).remove();
       document.querySelector('.modal.show').remove();
       toast('Soru silindi', 'success');
+    }
+
+    function deleteAllPending() {
+      const list = Object.entries(pendingQuestions).filter(([k, v]) => v.status === 'pending');
+      if (!list.length) return;
+
+      showModal('🗑️ Tümünü Sil',
+        `Toplam ${list.length} bekleyen soruyu silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`,
+        'İptal', 'Evet, Tümünü Sil', async () => {
+          try {
+            for (const [id, q] of list) {
+              if (q.sessionId) {
+                const safeId = sanitizeSessionId(q.sessionId);
+                firebaseService.ref('sessions/' + safeId + '/info/needsAttention').set(false);
+                firebaseService.ref('sessions/' + safeId + '/info/hasPendingQuestion').set(false);
+              }
+              firebaseService.ref('pending_questions/' + id).remove();
+            }
+            document.querySelector('.modal.show').remove();
+            toast(list.length + ' bekleyen soru silindi', 'success');
+          } catch (err) {
+            console.error('Toplu silme hatası:', err);
+            toast('Silme hatası: ' + err.message, 'error');
+          }
+        });
     }
 
     function renderLearned(searchTerm = '') {

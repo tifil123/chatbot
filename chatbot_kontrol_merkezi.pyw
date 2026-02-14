@@ -94,7 +94,7 @@ class CommandCenter:
         self.category_buttons = {}
         categories = [
             ('backup', '💾 Yedekleme', self.colors['primary']),
-            ('firebase', '🚀 Firebase', self.colors['warning']),
+            ('supabase', '🚀 Supabase', self.colors['warning']),
             ('server', '🌐 Sunucu', self.colors['success']),
             ('git', '📦 Git', '#9b59b6'),
             ('links', '🔗 Linkler', '#3498db'),
@@ -265,8 +265,8 @@ class CommandCenter:
         # Kategoriye göre butonları göster
         if category == 'backup':
             self.show_backup_menu()
-        elif category == 'firebase':
-            self.show_firebase_menu()
+        elif category == 'supabase':
+            self.show_supabase_menu()
         elif category == 'server':
             self.show_server_menu()
         elif category == 'git':
@@ -355,16 +355,18 @@ class CommandCenter:
         for text, desc, color, cmd, row, col in actions:
             self.create_action_button(self.buttons_frame, text, desc, color, cmd, row, col)
     
-    def show_firebase_menu(self):
-        """Firebase menüsü"""
-        self.category_title.config(text="🚀 Firebase")
-        self.category_desc.config(text="Firebase hosting ve deployment işlemleri")
+    def show_supabase_menu(self):
+        """Supabase menüsü"""
+        self.category_title.config(text="🚀 Supabase")
+        self.category_desc.config(text="Supabase veritabanı ve dashboard işlemleri")
         
         self.buttons_frame.columnconfigure(0, weight=1)
         self.buttons_frame.columnconfigure(1, weight=1)
         
         actions = [
-        ("🚀 Deploy", "Canlı siteye yayınla", self.colors['warning'], self.firebase_deploy, 0, 0),
+        ("🚀 Deploy", "GitHub Pages'e yayınla (git push)", self.colors['success'], self.github_pages_deploy, 0, 0),
+        ("📊 Dashboard", "Supabase Dashboard'u aç", self.colors['warning'], self.supabase_dashboard, 0, 1),
+        ("📝 SQL Editor", "Supabase SQL Editor'ü aç", self.colors['primary'], self.supabase_sql_editor, 1, 0),
     ]
         
         for text, desc, color, cmd, row, col in actions:
@@ -557,22 +559,23 @@ class CommandCenter:
         bat_path = os.path.join(self.backup_tools, 'yedekleme_sistemi.bat')
         self.run_command(f'"{bat_path}"', show_window=True)
     
-    # Firebase komutları
-    def firebase_deploy(self):
+    # Supabase komutları
+    def github_pages_deploy(self):
         self.clear_output()
-        self.run_command('firebase deploy --only hosting')
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        commit_message = f"Deploy - {timestamp}"
+        self.log("🚀 GitHub Pages'e deploy ediliyor...")
+        self.run_command(f'git add . && git commit -m "{commit_message}" && git push origin main')
     
-    def firebase_login(self):
-        self.clear_output()
-        self.run_command('firebase login', show_window=True)
+    def supabase_dashboard(self):
+        webbrowser.open('https://supabase.com/dashboard/project/ydhlveimkpkncyizdjjy')
+        self.log("📊 Supabase Dashboard açılıyor...")
+        self.status_label.config(text="📊 Dashboard açıldı")
     
-    def firebase_serve(self):
-        self.clear_output()
-        self.run_command('firebase serve', show_window=True)
-    
-    def firebase_projects(self):
-        self.clear_output()
-        self.run_command('firebase projects:list')
+    def supabase_sql_editor(self):
+        webbrowser.open('https://supabase.com/dashboard/project/ydhlveimkpkncyizdjjy/sql/new')
+        self.log("📝 Supabase SQL Editor açılıyor...")
+        self.status_label.config(text="📝 SQL Editor açıldı")
     
     # Sunucu komutları
     def server_start(self):
@@ -637,21 +640,15 @@ class CommandCenter:
     # Link açma komutları
     def open_admin_panel(self):
         """Admin paneli tarayıcıda aç"""
-        webbrowser.open('https://chatbotdb-be1f7.web.app/admin-panel-optimized.html')
+        webbrowser.open('http://localhost:8080/admin-panel-optimized.html')
         self.log("🎛️ Admin Panel açılıyor...")
         self.status_label.config(text="🎛️ Admin Panel açıldı")
     
     def open_widget(self):
         """Widget demo sayfasını tarayıcıda aç"""
-        webbrowser.open('https://chatbotdb-be1f7.web.app/chatbot-widget-optimized.html')
+        webbrowser.open('http://localhost:8080/chatbot-widget-optimized.html')
         self.log("💬 Widget Demo açılıyor...")
         self.status_label.config(text="💬 Widget Demo açıldı")
-    
-    def open_localhost(self):
-        """Canlı siteyi aç"""
-        webbrowser.open('https://chatbotdb-be1f7.web.app/')
-        self.log("🌐 Canlı site açılıyor...")
-        self.status_label.config(text="🌐 Canlı site açıldı")
 
     
     # Git komutları
@@ -773,17 +770,18 @@ class CommandCenter:
         if pyc_files:
             self.log(f"  🗑️ {len(pyc_files)} adet .pyc dosyası silindi")
         
-        # 3. .firebase klasörünü temizle (deployment cache)
-        firebase_cache = os.path.join(self.project_folder, '.firebase')
-        if os.path.exists(firebase_cache):
-            try:
-                size = get_size(firebase_cache)
-                shutil.rmtree(firebase_cache)
-                total_size += size
-                cleaned_items.append(f"📁 {firebase_cache}")
-                self.log(f"  🗑️ Silindi: .firebase cache ({format_size(size)})")
-            except Exception as e:
-                self.log(f"  ⚠️ .firebase silinemedi: {str(e)}")
+        # 3. Geçici cache klasörlerini temizle
+        for cache_dir in ['.cache', 'tmp']:
+            cache_path = os.path.join(self.project_folder, cache_dir)
+            if os.path.exists(cache_path):
+                try:
+                    size = get_size(cache_path)
+                    shutil.rmtree(cache_path)
+                    total_size += size
+                    cleaned_items.append(f"📁 {cache_path}")
+                    self.log(f"  🗑️ Silindi: {cache_dir} ({format_size(size)})")
+                except Exception as e:
+                    self.log(f"  ⚠️ {cache_dir} silinemedi: {str(e)}")
         
         # 4. temp_ ile başlayan geçici dosyaları temizle
         temp_files = glob.glob(os.path.join(self.project_folder, "temp_*"))
