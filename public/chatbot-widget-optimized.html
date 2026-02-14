@@ -753,7 +753,20 @@
         <div class="reply-text" id="widgetReplyText">Mesaj...</div>
         <button class="reply-close" onclick="clearWidgetReplyTo()">×</button>
       </div>
+      <!-- Medya önizleme -->
+      <div id="widgetMediaPreview" style="display:none;padding:6px 12px;position:relative;max-width:150px">
+        <img id="widgetMediaPreviewImg" style="max-width:150px;max-height:100px;border-radius:8px;display:none">
+        <video id="widgetMediaPreviewVid" style="max-width:150px;max-height:100px;border-radius:8px;display:none"
+          muted></video>
+        <button onclick="clearWidgetMediaPreview()"
+          style="position:absolute;top:2px;right:8px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:12px;line-height:20px;padding:0">×</button>
+      </div>
+      <input type="file" id="widgetFileInput" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm"
+        style="display:none" onchange="handleWidgetFileSelect(event)">
       <div class="chat-input-wrapper">
+        <button onclick="document.getElementById('widgetFileInput').click()"
+          style="width:36px;height:36px;border-radius:50%;border:none;background:transparent;color:#667eea;cursor:pointer;font-size:1.2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0"
+          title="Fotoğraf/Video Ekle">📎</button>
         <input type="text" id="widgetInput" placeholder="Mesajınızı yazın..." disabled>
         <button onclick="sendWidgetMessage()" id="widgetSendBtn" disabled>
           <svg viewBox="0 0 24 24">
@@ -1162,7 +1175,7 @@
         // Her mesajı widget'a ekle VE conversation history'ye ekle
         sortedMessages.forEach(msg => {
           const isUser = msg.sender === 'user';
-          addWidgetMessage(msg.message, isUser, msg.id, msg.replyTo || null);
+          addWidgetMessage(msg.message, isUser, msg.id, msg.replyTo || null, msg.mediaUrl || null, msg.mediaType || null);
 
           // 🔥 ÖNEMLİ: Mesajları conversation history'ye ekle (bağlam eşleştirmesi için)
           widgetConversationHistory.push({
@@ -1285,7 +1298,7 @@
         const msg = snap.val();
         if (msg.sender === 'bot' && msg.fromAdmin && !document.querySelector(`[data-msg-id="${snap.key}"]`)) {
           hideWidgetTyping();
-          addWidgetMessage(msg.message, false, snap.key, msg.replyTo || null);
+          addWidgetMessage(msg.message, false, snap.key, msg.replyTo || null, msg.mediaUrl || null, msg.mediaType || null);
           if (!widgetOpen) {
             widgetUnread++;
             updateBadge();
@@ -1431,7 +1444,7 @@
       return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#667eea;text-decoration:underline">$1</a>');
     }
 
-    function addWidgetMessage(text, isUser, msgId = null, replyTo = null) {
+    function addWidgetMessage(text, isUser, msgId = null, replyTo = null, mediaUrl = null, mediaType = null) {
       const container = document.getElementById('widgetMessages');
       const div = document.createElement('div');
       div.className = 'message ' + (isUser ? 'user' : 'bot');
@@ -1455,8 +1468,20 @@
         `;
       }
 
+      // Medya HTML
+      let mediaHtml = '';
+      if (mediaUrl) {
+        if (mediaType === 'image') {
+          mediaHtml = `<div style="margin:4px 0"><img src="${mediaUrl}" style="max-width:200px;max-height:200px;border-radius:8px;cursor:pointer" onclick="window.open('${mediaUrl}','_blank')" alt="Fotoğraf"></div>`;
+        } else if (mediaType === 'video') {
+          mediaHtml = `<div style="margin:4px 0"><video src="${mediaUrl}" style="max-width:200px;max-height:200px;border-radius:8px" controls></video></div>`;
+        }
+      }
+
+      const showText = !mediaUrl || (text && !text.startsWith('📷') && !text.startsWith('🎥'));
+
       div.innerHTML = `
-    <div class="bubble">${replyRefHtml}${formattedText}</div>
+    <div class="bubble">${replyRefHtml}${mediaHtml}${showText ? formattedText : ''}</div>
     <div class="time">${time}</div>
   `;
 
@@ -1506,15 +1531,59 @@
       document.getElementById('widgetTyping').classList.remove('show');
     }
 
+    // Bekleyen medya dosyası
+    let widgetPendingMedia = null;
+
+    function handleWidgetFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      widgetPendingMedia = file;
+      const preview = document.getElementById('widgetMediaPreview');
+      const img = document.getElementById('widgetMediaPreviewImg');
+      const vid = document.getElementById('widgetMediaPreviewVid');
+      img.style.display = 'none';
+      vid.style.display = 'none';
+      if (file.type.startsWith('image/')) {
+        img.src = URL.createObjectURL(file);
+        img.style.display = 'block';
+      } else {
+        vid.src = URL.createObjectURL(file);
+        vid.style.display = 'block';
+      }
+      preview.style.display = 'block';
+    }
+
+    function clearWidgetMediaPreview() {
+      widgetPendingMedia = null;
+      document.getElementById('widgetMediaPreview').style.display = 'none';
+      document.getElementById('widgetMediaPreviewImg').style.display = 'none';
+      document.getElementById('widgetMediaPreviewVid').style.display = 'none';
+      document.getElementById('widgetFileInput').value = '';
+    }
+
     async function sendWidgetMessage() {
       const input = document.getElementById('widgetInput');
       const text = input.value.trim();
-      if (!text || !widgetDb) return;
+      if ((!text && !widgetPendingMedia) || !widgetDb) return;
 
-      console.log('📤 Mesaj gönderiliyor:', text);
+      // Medya varsa yükle
+      let mediaUrl = null;
+      let mediaType = null;
+      if (widgetPendingMedia) {
+        try {
+          const result = await firebaseService.uploadFile(widgetPendingMedia);
+          mediaUrl = result.url;
+          mediaType = result.type;
+        } catch (err) {
+          alert('Dosya yüklenemedi: ' + err.message);
+          return;
+        }
+      }
+
+      const displayText = text || (mediaType === 'image' ? '📷 Fotoğraf' : '🎥 Video');
 
       input.value = '';
-      addWidgetMessage(text, true);
+      addWidgetMessage(displayText, true, null, null, mediaUrl, mediaType);
 
       // Firebase'e kaydet - firebaseService kullanarak
       console.log('📤 Mesaj gönderiliyor:', text);
@@ -1553,9 +1622,14 @@
         // Mesaj objesi oluştur
         const msgData = {
           sender: 'user',
-          message: text,
+          message: displayText,
           timestamp: Date.now()
         };
+
+        if (mediaUrl) {
+          msgData.mediaUrl = mediaUrl;
+          msgData.mediaType = mediaType;
+        }
 
         // Eğer bir mesaja yanıt veriyorsak, replyTo ekle
         if (widgetReplyingTo) {
@@ -1573,13 +1647,14 @@
         console.log('✅ Mesaj Firebase\'e push ile kaydedildi - kontrol edin:', messagePath);
         console.log('✅ Mesaj Firebase\'e kaydedildi - kontrol edin:', messagePath);
 
-        // Reply preview'ı temizle
+        // Reply ve medya preview'ı temizle
         clearWidgetReplyTo();
+        clearWidgetMediaPreview();
 
         // Session bilgisini güncelle
         await firebaseService.update(sessionPath + '/info', {
           lastActive: Date.now(),
-          lastMessage: text.slice(0, 50)
+          lastMessage: displayText.slice(0, 50)
         });
         console.log('✅ Session bilgileri güncellendi');
 

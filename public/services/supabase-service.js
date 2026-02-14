@@ -41,6 +41,8 @@ class SupabaseService {
             replyTo: 'reply_to',
             sessionId: 'session_id',
             autoReply: 'auto_reply',
+            mediaUrl: 'media_url',
+            mediaType: 'media_type',
         };
         return map[key] || key;
     }
@@ -68,6 +70,8 @@ class SupabaseService {
             session_id: 'sessionId',
             auto_reply: 'auto',
             created_at: 'createdAt',
+            media_url: 'mediaUrl',
+            media_type: 'mediaType',
         };
         return map[key] || key;
     }
@@ -1062,6 +1066,66 @@ class SupabaseService {
         if (window.uiService) {
             window.uiService.showToast(`Supabase hatası: ${error.message}`, 'error');
         }
+    }
+
+    // ============ FILE UPLOAD (Supabase Storage) ============
+
+    /**
+     * Dosyayı Supabase Storage'a yükle ve public URL döndür
+     * @param {File} file - Yüklenecek dosya
+     * @returns {Promise<{url: string, type: string}>} - Public URL ve medya tipi
+     */
+    async uploadFile(file) {
+        if (!this.client) throw new Error('Supabase bağlantısı yok');
+
+        // Boyut kontrolü (max 10MB)
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            throw new Error('Dosya boyutu 10MB\'dan büyük olamaz');
+        }
+
+        // Tip kontrolü
+        const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        const videoTypes = ['video/mp4', 'video/webm'];
+        const allowedTypes = [...imageTypes, ...videoTypes];
+
+        if (!allowedTypes.includes(file.type)) {
+            throw new Error('Desteklenmeyen dosya formatı. Desteklenen: JPG, PNG, GIF, WEBP, MP4, WEBM');
+        }
+
+        const mediaType = imageTypes.includes(file.type) ? 'image' : 'video';
+
+        // Benzersiz dosya adı oluştur
+        const ext = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const filePath = `chat/${fileName}`;
+
+        console.log(`📤 Dosya yükleniyor: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`);
+
+        // Supabase Storage'a yükle
+        const { data, error } = await this.client.storage
+            .from('chat-media')
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: false
+            });
+
+        if (error) {
+            console.error('❌ Dosya yükleme hatası:', error);
+            throw error;
+        }
+
+        // Public URL al
+        const { data: urlData } = this.client.storage
+            .from('chat-media')
+            .getPublicUrl(filePath);
+
+        console.log(`✅ Dosya yüklendi: ${urlData.publicUrl}`);
+
+        return {
+            url: urlData.publicUrl,
+            type: mediaType
+        };
     }
 }
 

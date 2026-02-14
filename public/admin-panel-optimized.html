@@ -1269,10 +1269,22 @@
         <textarea id="replyInput" placeholder="Yanıt yazın... (Shift+Enter: Yeni satır, Enter: Gönder)"
           style="width:100%;padding:12px 15px;border:1px solid #2a2a3a;border-radius:12px;background:#0a0a0f;color:#e2e8f0;font-size:0.9rem;margin-bottom:8px;min-height:60px;max-height:150px;resize:none;font-family:inherit;overflow:hidden"
           oninput="this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 150) + 'px'"></textarea>
+        <!-- Medya önizleme -->
+        <div id="mediaPreview" style="display:none;margin-bottom:8px;position:relative;max-width:200px">
+          <img id="mediaPreviewImg" style="max-width:200px;max-height:150px;border-radius:8px;display:none">
+          <video id="mediaPreviewVid" style="max-width:200px;max-height:150px;border-radius:8px;display:none"
+            muted></video>
+          <button onclick="clearMediaPreview()"
+            style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);color:#fff;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px">×</button>
+        </div>
+        <input type="file" id="adminFileInput" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm"
+          style="display:none" onchange="handleAdminFileSelect(event)">
         <div class="reply-actions">
           <button class="btn btn-warning" onclick="takeover()">👤 Devral</button>
           <button class="btn btn-danger" onclick="releaseControl()">🤖 Bota devret</button>
-          <button class="btn btn-success" onclick="sendManualReply()" style="margin-left:auto">📤 Gönder</button>
+          <button class="btn" onclick="document.getElementById('adminFileInput').click()"
+            style="background:#667eea;color:#fff;margin-left:auto" title="Fotoğraf/Video Ekle">📎</button>
+          <button class="btn btn-success" onclick="sendManualReply()">📤 Gönder</button>
         </div>
       </div>
     </div>
@@ -2107,6 +2119,17 @@
         return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#a5b4fc;text-decoration:underline">$1</a>');
       }
 
+      // Medya render fonksiyonu
+      function renderMedia(m) {
+        if (!m.mediaUrl) return '';
+        if (m.mediaType === 'image') {
+          return `<div style="margin:6px 0"><img src="${m.mediaUrl}" style="max-width:280px;max-height:300px;border-radius:8px;cursor:pointer" onclick="window.open('${m.mediaUrl}','_blank')" alt="Fotoğraf"></div>`;
+        } else if (m.mediaType === 'video') {
+          return `<div style="margin:6px 0"><video src="${m.mediaUrl}" style="max-width:280px;max-height:300px;border-radius:8px" controls></video></div>`;
+        }
+        return '';
+      }
+
       // WhatsApp tarzı: messages-inner wrapper ile alta hizalama
       el.innerHTML = `<div class="messages-inner">` + msgs.map(m => `
     <div class="msg ${m.sender} ${m.learned ? 'learned' : ''}" 
@@ -2115,7 +2138,8 @@
          data-msg-sender="${m.sender}"
          oncontextmenu="showMsgContextMenu(event, '${m.id}', '${(m.message || '').replace(/'/g, "\\'")}', '${m.sender}')">
       ${renderReplyRef(m.replyTo)}
-      ${linkify((m.message || '').replace(/\n/g, '<br>'))}
+      ${renderMedia(m)}
+      ${m.mediaUrl && m.message && !m.message.startsWith('📷') && !m.message.startsWith('🎥') ? linkify((m.message || '').replace(/\n/g, '<br>')) : (!m.mediaUrl ? linkify((m.message || '').replace(/\n/g, '<br>')) : '')}
       <div class="time">${formatTimestamp(m.timestamp)}${m.learned ? ' 🧠' : ''}${m.fromAdmin ? ' 👤' : ''}</div>
     </div>
   `).join('') + `</div>`;
@@ -2196,24 +2220,77 @@
       toast(newPinned ? '📌 Sohbet sabitlendi!' : '📍 Sabitleme kaldırıldı!', 'success');
     }
 
-    function sendManualReply() {
+    // Bekleyen medya dosyası
+    let pendingMediaFile = null;
+
+    function handleAdminFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      pendingMediaFile = file;
+      const preview = document.getElementById('mediaPreview');
+      const img = document.getElementById('mediaPreviewImg');
+      const vid = document.getElementById('mediaPreviewVid');
+      img.style.display = 'none';
+      vid.style.display = 'none';
+      if (file.type.startsWith('image/')) {
+        img.src = URL.createObjectURL(file);
+        img.style.display = 'block';
+      } else {
+        vid.src = URL.createObjectURL(file);
+        vid.style.display = 'block';
+      }
+      preview.style.display = 'block';
+      toast('📎 Dosya eklendi: ' + file.name, 'info');
+    }
+
+    function clearMediaPreview() {
+      pendingMediaFile = null;
+      document.getElementById('mediaPreview').style.display = 'none';
+      document.getElementById('mediaPreviewImg').style.display = 'none';
+      document.getElementById('mediaPreviewVid').style.display = 'none';
+      document.getElementById('adminFileInput').value = '';
+    }
+
+    async function sendManualReply() {
       const input = document.getElementById('replyInput');
       const text = input.value.trim();
 
-      if (!text || !selectedUser || !db) {
-        const message = !selectedUser ? 'Lütfen önce sol taraftan bir kullanıcı seçin.' :
-          !text ? 'Lütfen bir mesaj yazın.' : 'Firebase bağlantısı yok.';
-        showModal('⚠️ Eksik Bilgi', message, 'Tamam');
+      if (!text && !pendingMediaFile) {
+        showModal('⚠️ Eksik Bilgi', !selectedUser ? 'Lütfen önce sol taraftan bir kullanıcı seçin.' : 'Lütfen bir mesaj yazın veya dosya ekleyin.', 'Tamam');
         return;
+      }
+      if (!selectedUser || !db) {
+        showModal('⚠️ Eksik Bilgi', !selectedUser ? 'Lütfen önce sol taraftan bir kullanıcı seçin.' : 'Supabase bağlantısı yok.', 'Tamam');
+        return;
+      }
+
+      // Medya varsa yükle
+      let mediaUrl = null;
+      let mediaType = null;
+      if (pendingMediaFile) {
+        try {
+          toast('📤 Dosya yükleniyor...', 'info');
+          const result = await firebaseService.uploadFile(pendingMediaFile);
+          mediaUrl = result.url;
+          mediaType = result.type;
+        } catch (err) {
+          toast('❌ Dosya yüklenemedi: ' + err.message, 'error');
+          return;
+        }
       }
 
       // Mesaj objesi oluştur
       const msgData = {
         sender: 'bot',
-        message: text,
+        message: text || (mediaType === 'image' ? '📷 Fotoğraf' : '🎥 Video'),
         timestamp: Date.now(),
         fromAdmin: true
       };
+
+      if (mediaUrl) {
+        msgData.mediaUrl = mediaUrl;
+        msgData.mediaType = mediaType;
+      }
 
       // Eğer bir mesaja yanıt veriyorsak, replyTo ekle
       if (replyingTo) {
@@ -2226,29 +2303,30 @@
 
       firebaseService.ref('sessions/' + selectedUser + '/messages').push(msgData);
 
-      // needsAttention flag'ini temizle - ünlem işareti kaybolsun
+      // needsAttention flag'ini temizle
       firebaseService.ref('sessions/' + selectedUser + '/info/needsAttention').set(false);
 
-      // Kullanıcının son sorusunu bul
-      const userMsgs = Object.values(sessions[selectedUser].messages || {}).filter(m => m.sender === 'user').sort((a, b) => b.timestamp - a.timestamp);
-      const lastUserMsg = userMsgs[0];
+      // Kullanıcının son sorusunu bul (öğrenme modalı sadece metin mesajda)
+      if (text && !mediaUrl) {
+        const userMsgs = Object.values(sessions[selectedUser].messages || {}).filter(m => m.sender === 'user').sort((a, b) => b.timestamp - a.timestamp);
+        const lastUserMsg = userMsgs[0];
 
-      if (lastUserMsg) {
-        lastManualReply = {
-          question: lastUserMsg.message,
-          response: text,
-          sessionId: selectedUser,
-          timestamp: Date.now()
-        };
-
-        // Öğrenme modalını göster
-        document.getElementById('learnQuestion').textContent = lastUserMsg.message;
-        document.getElementById('learnResponse').textContent = text;
-        document.getElementById('learnModal').classList.add('show');
+        if (lastUserMsg) {
+          lastManualReply = {
+            question: lastUserMsg.message,
+            response: text,
+            sessionId: selectedUser,
+            timestamp: Date.now()
+          };
+          document.getElementById('learnQuestion').textContent = lastUserMsg.message;
+          document.getElementById('learnResponse').textContent = text;
+          document.getElementById('learnModal').classList.add('show');
+        }
       }
 
       input.value = '';
-      clearReplyTo(); // Reply preview'ı temizle
+      clearReplyTo();
+      clearMediaPreview();
       toast('Yanıt gönderildi!', 'success');
     }
 
