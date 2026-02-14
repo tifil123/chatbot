@@ -35,6 +35,7 @@ class SupabaseService {
             lastMessage: 'last_message',
             controlMode: 'control_mode',
             fromAdmin: 'from_admin',
+            mode: 'control_mode',
             contextTags: 'context_tags',
             endTime: 'end_time',
             conversationHistory: 'conversation_history',
