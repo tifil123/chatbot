@@ -42,6 +42,7 @@ class SupabaseService {
             replyTo: 'reply_to',
             sessionId: 'session_id',
             autoReply: 'auto_reply',
+            createdAt: 'created_at',
             mediaUrl: 'media_url',
             mediaType: 'media_type',
         };
@@ -84,6 +85,8 @@ class SupabaseService {
         if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
         const result = {};
         for (const [key, value] of Object.entries(obj)) {
+            // created_at veritabanında DEFAULT NOW() ile otomatik oluşturulur, göndermeye gerek yok
+            if (key === 'createdAt' || key === 'created_at') continue;
             result[this._toSnakeCase(key)] = value;
         }
         return result;

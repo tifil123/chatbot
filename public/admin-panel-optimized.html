@@ -2306,23 +2306,7 @@
       // needsAttention flag'ini temizle
       firebaseService.ref('sessions/' + selectedUser + '/info/needsAttention').set(false);
 
-      // Kullanıcının son sorusunu bul (öğrenme modalı sadece metin mesajda)
-      if (text && !mediaUrl) {
-        const userMsgs = Object.values(sessions[selectedUser].messages || {}).filter(m => m.sender === 'user').sort((a, b) => b.timestamp - a.timestamp);
-        const lastUserMsg = userMsgs[0];
 
-        if (lastUserMsg) {
-          lastManualReply = {
-            question: lastUserMsg.message,
-            response: text,
-            sessionId: selectedUser,
-            timestamp: Date.now()
-          };
-          document.getElementById('learnQuestion').textContent = lastUserMsg.message;
-          document.getElementById('learnResponse').textContent = text;
-          document.getElementById('learnModal').classList.add('show');
-        }
-      }
 
       input.value = '';
       clearReplyTo();
