@@ -1741,6 +1741,69 @@
             // Hata olsa bile normal akışa devam et
           }
 
+          // 🕐 ZAMANLI YANITLAR KONTROLÜ
+          // Aktifse ve saat aralığındaysa, timed_responses tablosundan eşleşme ara
+          try {
+            const timedConfig = await firebaseService.read('timed_responses_config');
+            if (timedConfig) {
+              const defaultConfig = timedConfig.default || Object.values(timedConfig)[0];
+              if (defaultConfig && defaultConfig.enabled) {
+                const now = new Date();
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                const [startH, startM] = (defaultConfig.startTime || '09:00').split(':').map(Number);
+                const [endH, endM] = (defaultConfig.endTime || '18:00').split(':').map(Number);
+                const startMinutes = startH * 60 + startM;
+                const endMinutes = endH * 60 + endM;
+
+                let inRange = false;
+                if (startMinutes <= endMinutes) {
+                  inRange = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+                } else {
+                  inRange = currentMinutes >= startMinutes || currentMinutes < endMinutes;
+                }
+
+                if (inRange) {
+                  const timedData = await firebaseService.read('timed_responses');
+                  if (timedData) {
+                    const textLower = text.toLowerCase().trim();
+                    const timedMatch = Object.values(timedData).find(item =>
+                      item.question && item.question.toLowerCase().trim() === textLower
+                    );
+
+                    if (timedMatch) {
+                      console.log('🕐 Zamanlı yanıt eşleşti:', timedMatch.question);
+                      hideWidgetTyping();
+
+                      const userMsgReplyTo = {
+                        messageId: 'user_' + Date.now(),
+                        message: text.slice(0, 50),
+                        sender: 'user'
+                      };
+
+                      addWidgetMessage(timedMatch.response, false, null, userMsgReplyTo);
+                      await firebaseService.push('sessions/' + widgetSessionId + '/messages', {
+                        sender: 'bot',
+                        message: timedMatch.response,
+                        timestamp: Date.now(),
+                        auto: true,
+                        learned: true,
+                        replyTo: userMsgReplyTo
+                      });
+
+                      widgetConversationHistory.push({ sender: 'bot', message: timedMatch.response });
+                      if (widgetConversationHistory.length > 10) widgetConversationHistory.shift();
+                      return; // Zamanlı yanıt gönderildi
+                    }
+                  }
+                }
+              }
+            }
+          } catch (timedErr) {
+            console.error('🕐 Zamanlı yanıt kontrol hatası:', timedErr);
+            // Hata olsa bile normal akışa devam et
+          }
+
           const learnedData = await firebaseService.read('learned_responses');
 
           // Tek eşleşme ara

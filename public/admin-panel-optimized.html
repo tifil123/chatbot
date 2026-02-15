@@ -1341,6 +1341,64 @@
             </div>
           </div>
         </div>
+
+        <!-- Zamanlı Yanıtlar Kartı -->
+        <div class="scheduled-card" style="margin-top:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <h3>🕐 Zamanlı Yanıtlar</h3>
+            <label class="schedule-toggle" style="margin:0">
+              <input type="checkbox" id="timedResponsesToggle" onchange="toggleTimedResponses(this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <p style="font-size:0.8rem;color:#64748b;margin-bottom:15px;line-height:1.5">
+            Aktif olduğunda ve belirlenen saat aralığında, aşağıdaki soru-yanıt eşleşmeleri normal öğrenilmiş yanıtların
+            yerine kullanılır.
+          </p>
+          <div id="timedResponsesSettings" style="opacity:0.5;pointer-events:none">
+            <div class="schedule-form" style="margin-bottom:15px">
+              <div class="form-group">
+                <label>⏱️ Başlangıç</label>
+                <input type="time" id="timedStart" value="09:00">
+              </div>
+              <div class="form-group">
+                <label>⏱️ Bitiş</label>
+                <input type="time" id="timedEnd" value="18:00">
+              </div>
+              <button class="btn btn-success" onclick="saveTimedResponsesTime()" style="height:38px;margin-left:auto">💾
+                Saati Kaydet</button>
+            </div>
+            <div
+              style="display:flex;gap:8px;align-items:center;padding:8px 12px;background:rgba(102,126,234,0.1);border-radius:8px;margin-bottom:15px">
+              <span style="font-size:1.2rem">⏰</span>
+              <span id="timedTimeDisplay" style="font-size:0.85rem;color:#94a3b8">09:00 - 18:00</span>
+              <span id="timedStatusBadge"
+                style="margin-left:auto;font-size:0.7rem;padding:3px 8px;border-radius:10px;background:#ef4444;color:#fff">KAPALI</span>
+            </div>
+            <div class="schedule-form">
+              <div style="width:100%">
+                <label style="font-size:0.75rem;color:#94a3b8;font-weight:600;display:block;margin-bottom:5px">❓
+                  Soru</label>
+                <input type="text" id="timedQuestion" placeholder="Kullanıcının soracağı soru..."
+                  style="width:100%;padding:8px 12px;border:1px solid #2a2a3a;border-radius:8px;background:#1e1e2e;color:#e2e8f0;font-size:0.85rem;box-sizing:border-box">
+              </div>
+              <div style="width:100%">
+                <label style="font-size:0.75rem;color:#94a3b8;font-weight:600;display:block;margin-bottom:5px">💬
+                  Yanıt</label>
+                <textarea id="timedResponse" placeholder="Bu saatlerde verilecek yanıt..."
+                  style="width:100%;padding:8px 12px;border:1px solid #2a2a3a;border-radius:8px;background:#1e1e2e;color:#e2e8f0;font-size:0.85rem;min-height:40px;resize:none;font-family:inherit;overflow:hidden;box-sizing:border-box"
+                  oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+              </div>
+              <button class="btn btn-success" onclick="addTimedResponse()" style="height:38px;margin-left:auto">➕
+                Ekle</button>
+            </div>
+            <div id="timedResponsesList" style="margin-top:15px">
+              <div class="empty" style="padding:20px;font-size:0.85rem">
+                <div class="icon">🕐</div>Henüz zamanlı yanıt yok
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="tab-content" id="tab-pending">
@@ -1543,6 +1601,8 @@
     let pendingQuestions = {};
     let learnedResponses = {};
     let scheduledMessages = {};
+    let timedResponses = {};
+    let timedResponsesConfig = { enabled: false, startTime: '09:00', endTime: '18:00' };
     let selectedUser = null;
     let lastManualReply = {};
 
@@ -1811,6 +1871,21 @@
           scheduledMessages = {};
           s.forEach(c => { scheduledMessages[c.key] = c.val() });
           renderScheduledMessages();
+        });
+
+        // Timed responses config
+        firebaseService.subscribe('timed_responses_config', s => {
+          const configData = {};
+          s.forEach(c => { configData[c.key] = c.val() });
+          timedResponsesConfig = configData.default || { enabled: false, startTime: '09:00', endTime: '18:00' };
+          updateTimedResponsesUI();
+        });
+
+        // Timed responses
+        firebaseService.subscribe('timed_responses', s => {
+          timedResponses = {};
+          s.forEach(c => { timedResponses[c.key] = c.val() });
+          renderTimedResponses();
         });
 
         document.getElementById('statusDot').classList.add('on');
@@ -3443,6 +3518,113 @@
         console.error('❌ Toggle hatası:', error);
         toast('Hata: ' + error.message, 'error');
       }
+    }
+
+    // ============ ZAMANLI YANITLAR ============
+
+    function updateTimedResponsesUI() {
+      const toggle = document.getElementById('timedResponsesToggle');
+      const settings = document.getElementById('timedResponsesSettings');
+      const badge = document.getElementById('timedStatusBadge');
+      const timeDisplay = document.getElementById('timedTimeDisplay');
+
+      if (toggle) toggle.checked = timedResponsesConfig.enabled;
+      if (settings) {
+        settings.style.opacity = timedResponsesConfig.enabled ? '1' : '0.5';
+        settings.style.pointerEvents = timedResponsesConfig.enabled ? 'auto' : 'none';
+      }
+      if (badge) {
+        badge.textContent = timedResponsesConfig.enabled ? 'AKTİF' : 'KAPALI';
+        badge.style.background = timedResponsesConfig.enabled ? '#10b981' : '#ef4444';
+      }
+      if (timeDisplay) {
+        timeDisplay.textContent = (timedResponsesConfig.startTime || '09:00') + ' - ' + (timedResponsesConfig.endTime || '18:00');
+      }
+      document.getElementById('timedStart').value = timedResponsesConfig.startTime || '09:00';
+      document.getElementById('timedEnd').value = timedResponsesConfig.endTime || '18:00';
+    }
+
+    async function toggleTimedResponses(enabled) {
+      try {
+        await firebaseService.update('timed_responses_config/default', { enabled });
+        toast(enabled ? '🕐 Zamanlı yanıtlar aktif!' : '🕐 Zamanlı yanıtlar kapatıldı', 'success');
+      } catch (error) {
+        console.error('❌ Toggle hatası:', error);
+        toast('Hata: ' + error.message, 'error');
+      }
+    }
+
+    async function saveTimedResponsesTime() {
+      const startTime = document.getElementById('timedStart').value;
+      const endTime = document.getElementById('timedEnd').value;
+      if (!startTime || !endTime) {
+        toast('Başlangıç ve bitiş saati seçin!', 'error');
+        return;
+      }
+      try {
+        await firebaseService.update('timed_responses_config/default', { startTime, endTime });
+        toast('⏰ Saat aralığı güncellendi: ' + startTime + ' - ' + endTime, 'success');
+      } catch (error) {
+        console.error('❌ Saat güncelleme hatası:', error);
+        toast('Hata: ' + error.message, 'error');
+      }
+    }
+
+    async function addTimedResponse() {
+      const questionEl = document.getElementById('timedQuestion');
+      const responseEl = document.getElementById('timedResponse');
+      const question = questionEl.value.trim();
+      const response = responseEl.value.trim();
+
+      if (!question) { toast('Soru yazın!', 'error'); return; }
+      if (!response) { toast('Yanıt yazın!', 'error'); return; }
+
+      try {
+        await firebaseService.push('timed_responses', { question, response });
+        toast('🕐 Zamanlı yanıt eklendi!', 'success');
+        questionEl.value = '';
+        responseEl.value = '';
+      } catch (error) {
+        console.error('❌ Zamanlı yanıt ekleme hatası:', error);
+        toast('Hata: ' + error.message, 'error');
+      }
+    }
+
+    async function deleteTimedResponse(id) {
+      if (!confirm('Bu zamanlı yanıtı silmek istediğinize emin misiniz?')) return;
+      try {
+        await firebaseService.remove('timed_responses/' + id);
+        toast('Zamanlı yanıt silindi!', 'success');
+      } catch (error) {
+        console.error('❌ Zamanlı yanıt silme hatası:', error);
+        toast('Hata: ' + error.message, 'error');
+      }
+    }
+
+    function renderTimedResponses() {
+      const container = document.getElementById('timedResponsesList');
+      const items = Object.entries(timedResponses);
+
+      if (!items.length) {
+        container.innerHTML = '<div class="empty" style="padding:20px;font-size:0.85rem"><div class="icon">🕐</div>Henüz zamanlı yanıt yok</div>';
+        return;
+      }
+
+      container.innerHTML = items.map(([id, item]) => {
+        const qPreview = (item.question || '').length > 50 ? item.question.slice(0, 50) + '...' : item.question;
+        const rPreview = (item.response || '').length > 60 ? item.response.slice(0, 60) + '...' : item.response;
+        return `
+          <div class="schedule-item" style="border-left-color:#f59e0b">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.8rem;color:#f59e0b;font-weight:600;margin-bottom:4px">❓ ${qPreview}</div>
+              <div style="font-size:0.8rem;color:#94a3b8">💬 ${rPreview}</div>
+            </div>
+            <div class="schedule-actions">
+              <button class="delete-btn" onclick="deleteTimedResponse('${id}')">🗑️ Sil</button>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
   </script>
 </body>

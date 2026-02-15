@@ -169,8 +169,8 @@ class SupabaseService {
             }
         }
 
-        // pending_questions, learned_responses, scheduled_messages
-        if (['pending_questions', 'learned_responses', 'scheduled_messages'].includes(root)) {
+        // pending_questions, learned_responses, scheduled_messages, timed_responses, timed_responses_config
+        if (['pending_questions', 'learned_responses', 'scheduled_messages', 'timed_responses', 'timed_responses_config'].includes(root)) {
             if (parts.length === 1) {
                 return { table: root, action: 'list' };
             }
@@ -286,6 +286,27 @@ class SupabaseService {
             endTime: row.end_time,
             message: row.message,
             enabled: row.enabled,
+        };
+    }
+
+    /**
+     * Timed response config satırını Firebase-uyumlu formata çevir
+     */
+    _timedConfigRowToFirebaseFormat(row) {
+        return {
+            enabled: row.enabled,
+            startTime: row.start_time,
+            endTime: row.end_time,
+        };
+    }
+
+    /**
+     * Timed response satırını Firebase-uyumlu formata çevir
+     */
+    _timedResponseRowToFirebaseFormat(row) {
+        return {
+            question: row.question,
+            response: row.response,
         };
     }
 
@@ -542,6 +563,36 @@ class SupabaseService {
                 const result = {};
                 data.forEach(row => {
                     result[row.id] = this._scheduledRowToFirebaseFormat(row);
+                });
+                return result;
+            }
+
+            // Timed responses config
+            if (parsed.table === 'timed_responses_config' && parsed.action === 'list') {
+                const { data, error } = await this.client
+                    .from('timed_responses_config')
+                    .select('*');
+                if (error) throw error;
+                if (!data || data.length === 0) return null;
+
+                const result = {};
+                data.forEach(row => {
+                    result[row.id] = this._timedConfigRowToFirebaseFormat(row);
+                });
+                return result;
+            }
+
+            // Timed responses
+            if (parsed.table === 'timed_responses' && parsed.action === 'list') {
+                const { data, error } = await this.client
+                    .from('timed_responses')
+                    .select('*');
+                if (error) throw error;
+                if (!data || data.length === 0) return null;
+
+                const result = {};
+                data.forEach(row => {
+                    result[row.id] = this._timedResponseRowToFirebaseFormat(row);
                 });
                 return result;
             }

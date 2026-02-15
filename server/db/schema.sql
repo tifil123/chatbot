@@ -68,6 +68,24 @@ CREATE TABLE IF NOT EXISTS scheduled_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Timed Responses Config tablosu (tek satırlık ayar)
+CREATE TABLE IF NOT EXISTS timed_responses_config (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  enabled BOOLEAN DEFAULT FALSE,
+  start_time TEXT NOT NULL DEFAULT '09:00',
+  end_time TEXT NOT NULL DEFAULT '18:00',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+INSERT INTO timed_responses_config (id) VALUES ('default') ON CONFLICT DO NOTHING;
+
+-- Timed Responses tablosu (zamanlı soru-yanıt çiftleri)
+CREATE TABLE IF NOT EXISTS timed_responses (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  question TEXT NOT NULL,
+  response TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- İndeksler
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages("timestamp");
@@ -81,6 +99,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE pending_questions;
 ALTER PUBLICATION supabase_realtime ADD TABLE learned_responses;
 ALTER PUBLICATION supabase_realtime ADD TABLE scheduled_messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE timed_responses_config;
+ALTER PUBLICATION supabase_realtime ADD TABLE timed_responses;
 
 -- RLS (Row Level Security) - Şimdilik açık erişim
 ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
@@ -88,9 +108,14 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pending_questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE learned_responses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scheduled_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timed_responses_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timed_responses ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow all on sessions" ON sessions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on messages" ON messages FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on pending_questions" ON pending_questions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on learned_responses" ON learned_responses FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on scheduled_messages" ON scheduled_messages FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on timed_responses_config" ON timed_responses_config FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on timed_responses" ON timed_responses FOR ALL USING (true) WITH CHECK (true);
+
