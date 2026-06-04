@@ -8,9 +8,9 @@
     const hash = window.location.hash || '';
     const query = window.location.search || '';
     if (hash.includes('type=recovery') || query.includes('type=recovery') || hash.includes('access_token=')) {
-      window.location.replace('/reset-password.html' + query + hash);
+      window.location.replace('reset-password.html' + query + hash);
     } else {
-      window.location.replace('/admin-panel-optimized.html');
+      window.location.replace('admin-panel-optimized.html');
     }
   </script>
 </head>
