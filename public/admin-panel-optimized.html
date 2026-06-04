@@ -1219,10 +1219,146 @@
     .schedule-toggle input:checked+.slider::before {
       transform: translateX(18px)
     }
+
+    body.auth-locked .app {
+      display: none
+    }
+
+    .auth-screen {
+      min-height: 100vh;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: #0a0a0f
+    }
+
+    body.auth-locked .auth-screen {
+      display: flex
+    }
+
+    .auth-panel {
+      width: 100%;
+      max-width: 380px;
+      background: #12121a;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35)
+    }
+
+    .auth-panel h1 {
+      font-size: 1.25rem;
+      margin-bottom: 6px
+    }
+
+    .auth-panel p {
+      color: #94a3b8;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      margin-bottom: 18px
+    }
+
+    .auth-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px
+    }
+
+    .auth-field label {
+      color: #cbd5e1;
+      font-size: 0.78rem;
+      font-weight: 600
+    }
+
+    .auth-field input {
+      width: 100%;
+      padding: 11px 12px;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      background: #0a0a0f;
+      color: #e2e8f0;
+      font: inherit
+    }
+
+    .auth-error {
+      min-height: 20px;
+      color: #fca5a5;
+      font-size: 0.78rem;
+      margin-bottom: 12px
+    }
+
+    .auth-submit {
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      padding: 11px 14px;
+      background: #10b981;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer
+    }
+
+    .auth-submit:disabled {
+      opacity: 0.65;
+      cursor: wait
+    }
+
+    .auth-user {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #94a3b8;
+      font-size: 0.78rem
+    }
+
+    .admin-role-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 52px;
+      height: 24px;
+      padding: 0 10px;
+      border-radius: 6px;
+      background: #10b981;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0;
+      line-height: 1
+    }
+
+    .auth-logout {
+      border: 1px solid #334155;
+      border-radius: 6px;
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 5px 8px;
+      cursor: pointer
+    }
   </style>
 </head>
 
-<body>
+<body class="auth-locked">
+  <div class="auth-screen" id="authScreen">
+    <form class="auth-panel" id="adminLoginForm">
+      <h1>Admin Login</h1>
+      <p>Database now requires an admin role. Sign in with the Supabase email and password you created.</p>
+      <div class="auth-field">
+        <label for="adminEmail">E-posta</label>
+        <input id="adminEmail" type="email" autocomplete="email" required>
+      </div>
+      <div class="auth-field">
+        <label for="adminPassword">Password</label>
+        <input id="adminPassword" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="auth-error" id="adminLoginError"></div>
+      <button class="auth-submit" id="adminLoginButton" type="submit">Sign In</button>
+    </form>
+  </div>
+
   <div class="app">
     <aside class="sidebar">
       <div class="resizer sidebar-resizer"></div>
@@ -1297,6 +1433,10 @@
           <span class="notif" id="pendingNotif">0</span>
         </div>
         <div class="tab" onclick="switchTab('learned')">🧠 Öğrenilenler</div>
+        <div class="auth-user">
+          <span class="admin-role-badge" id="adminAuthEmail">ADMIN</span>
+          <button class="auth-logout" onclick="logoutAdmin()">Sign Out</button>
+        </div>
       </div>
 
       <div class="tab-content active" id="tab-config">
@@ -1786,13 +1926,106 @@
       return formatted;
     }
 
+    let adminSubscriptionsStarted = false;
+
     window.onload = () => {
       setupUserListEventListeners(); // Event listener'ları bir kez kur
-      connectFirebase();
       initResizers(); // Sidebar boyutlandırma özelliğini aktifleştir
+      initAdminAuth();
     };
 
+    async function initAdminAuth() {
+      const form = document.getElementById('adminLoginForm');
+      if (form) {
+        form.addEventListener('submit', handleAdminLogin);
+      }
+
+      try {
+        await firebaseService.connect();
+        const session = await firebaseService.getAuthSession();
+        if (session?.user && firebaseService.isAdminUser(session.user)) {
+          completeAdminLogin(session.user);
+          return;
+        }
+
+        if (session?.user) {
+          await firebaseService.signOut();
+        }
+        showAdminLogin();
+      } catch (error) {
+        console.error('Admin session check failed:', error);
+        showAdminLogin('Session check failed. Please sign in again.');
+      }
+    }
+
+    async function handleAdminLogin(event) {
+      event.preventDefault();
+      const emailInput = document.getElementById('adminEmail');
+      const passwordInput = document.getElementById('adminPassword');
+      const button = document.getElementById('adminLoginButton');
+      const errorEl = document.getElementById('adminLoginError');
+
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+      errorEl.textContent = '';
+      button.disabled = true;
+      button.textContent = 'Checking...';
+
+      try {
+        const { user } = await firebaseService.signInWithEmail(email, password);
+        if (!firebaseService.isAdminUser(user)) {
+          await firebaseService.signOut();
+          throw new Error('This user does not have the admin role.');
+        }
+        completeAdminLogin(user);
+      } catch (error) {
+        errorEl.textContent = error.message || 'Sign in failed.';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Sign In';
+      }
+    }
+
+    function completeAdminLogin(user) {
+      document.body.classList.remove('auth-locked');
+      const emailEl = document.getElementById('adminAuthEmail');
+      if (emailEl) {
+        emailEl.textContent = 'ADMIN';
+        emailEl.title = user.email || 'Admin';
+      }
+      connectFirebase();
+    }
+
+    function showAdminLogin(message = '') {
+      document.body.classList.add('auth-locked');
+      const errorEl = document.getElementById('adminLoginError');
+      if (errorEl) errorEl.textContent = message;
+    }
+
+    async function logoutAdmin() {
+      try {
+        await firebaseService.signOut();
+        adminSubscriptionsStarted = false;
+        db = null;
+        sessions = {};
+        pendingQuestions = {};
+        learnedResponses = {};
+        scheduledMessages = {};
+        timedResponses = {};
+        selectedUser = null;
+        document.getElementById('statusDot').classList.remove('on');
+        document.getElementById('statusText').textContent = 'Sign in required';
+        document.getElementById('connStatus').textContent = 'Not connected';
+        showAdminLogin();
+      } catch (error) {
+        toast('Sign out failed: ' + error.message, 'error');
+      }
+    }
+
     function connectFirebase() {
+      if (adminSubscriptionsStarted) return;
+      adminSubscriptionsStarted = true;
+
       try {
         // Supabase'e bağlan
         const activeConfig = window.SupabaseConfig?.getActiveConfig?.();

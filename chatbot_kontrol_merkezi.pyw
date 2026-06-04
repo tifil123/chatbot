@@ -11,6 +11,8 @@ import os
 import webbrowser
 from datetime import datetime
 
+SERVER_PORT = 8787
+
 class CommandCenter:
     def __init__(self, root):
         self.root = root
@@ -35,8 +37,9 @@ class CommandCenter:
         
         self.root.configure(bg=self.colors['bg'])
         
-        # Proje klasörü
-        self.project_folder = r"C:\Users\berka\Desktop\chatbot"
+        # Proje klasoru: uygulama hangi klasordeyse proje klasoru de orasi kabul edilir.
+        # Boylece klasoru tasidiginda burayi tekrar elle degistirmek gerekmez.
+        self.project_folder = os.path.dirname(os.path.abspath(__file__))
         self.backup_tools = os.path.join(self.project_folder, "backup-tools")
         
         # Aktif kategori
@@ -381,9 +384,10 @@ class CommandCenter:
         self.buttons_frame.columnconfigure(1, weight=1)
         
         actions = [
-            ("▶️ Sunucu Başlat", "localhost:8080 sunucusunu başlat", self.colors['success'], self.server_start, 0, 0),
+            ("▶️ Sunucu Başlat", f"localhost:{SERVER_PORT} sunucusunu başlat", self.colors['success'], self.server_start, 0, 0),
             ("⏹️ Sunucu Durdur", "Çalışan sunucuyu durdur", self.colors['danger'], self.server_stop, 0, 1),
-            ("🌐 Tarayıcıda Aç", "Admin paneli tarayıcıda aç", self.colors['primary'], self.open_browser, 1, 0),
+            ("🌐 Admin Aç", "Admin paneli tarayıcıda aç", self.colors['primary'], self.open_browser, 1, 0),
+            ("🤖 Widget Aç", "Chatbot widget'ı tarayıcıda aç", self.colors['warning'], self.open_widget_browser, 1, 1),
         ]
         
         for text, desc, color, cmd, row, col in actions:
@@ -590,14 +594,14 @@ class CommandCenter:
         try:
             # Sunucuyu arka planda başlat ve process'i sakla
             self.server_process = subprocess.Popen(
-                ['python', '-m', 'http.server', '8080'],
+                ['python', '-m', 'http.server', str(SERVER_PORT)],
                 cwd=os.path.join(self.project_folder, 'public'),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 creationflags=subprocess.CREATE_NEW_CONSOLE
             )
             self.log("✅ Sunucu başlatıldı (PID: {})".format(self.server_process.pid))
-            self.log("💡 Tarayıcıda http://localhost:8080 adresini açın")
+            self.log(f"💡 Tarayıcıda http://localhost:{SERVER_PORT} adresini açın")
             self.status_label.config(text="🌐 Sunucu çalışıyor (PID: {})".format(self.server_process.pid))
         except Exception as e:
             self.log(f"❌ Sunucu başlatılamadı: {str(e)}")
@@ -605,37 +609,78 @@ class CommandCenter:
     
     def server_stop(self):
         self.clear_output()
-        
-        if self.server_process is None:
-            self.log("⚠️ Durdurulacak sunucu bulunamadı.")
-            self.status_label.config(text="⚠️ Sunucu aktif değil")
-            return
-        
-        if self.server_process.poll() is not None:
-            self.log("⚠️ Sunucu zaten durmuş.")
-            self.server_process = None
-            self.status_label.config(text="⚠️ Sunucu zaten durmuş")
-            return
-        
+        stopped_count = 0
+
         try:
-            pid = self.server_process.pid
-            self.server_process.terminate()
-            self.server_process.wait(timeout=5)
-            self.log(f"✅ Sunucu durduruldu (PID: {pid})")
-            self.status_label.config(text="⏹️ Sunucu durduruldu")
+            if self.server_process is not None and self.server_process.poll() is None:
+                pid = self.server_process.pid
+                self.server_process.terminate()
+                self.server_process.wait(timeout=5)
+                self.log(f"Sunucu durduruldu (PID: {pid})")
+                stopped_count += 1
         except subprocess.TimeoutExpired:
             self.server_process.kill()
-            self.log("⚠️ Sunucu zorla durduruldu")
-            self.status_label.config(text="⚠️ Sunucu zorla durduruldu")
+            self.log("Sunucu zorla durduruldu")
+            stopped_count += 1
         except Exception as e:
-            self.log(f"❌ Sunucu durdurulamadı: {str(e)}")
-            self.status_label.config(text="❌ Hata oluştu")
+            self.log(f"Kayitli sunucu durdurulamadi: {str(e)}")
         finally:
             self.server_process = None
-    
+
+        for port in (SERVER_PORT, 8080):
+            try:
+                command = f'for /f "tokens=5" %a in (\'netstat -ano ^| findstr :{port} ^| findstr LISTENING\') do taskkill /PID %a /F'
+                result = subprocess.run(command, shell=True, capture_output=True, text=True, errors='replace')
+                output = (result.stdout + result.stderr).strip()
+                if output:
+                    self.log(f"Port {port} temizleme sonucu: {output[:300]}")
+                    if result.returncode == 0:
+                        stopped_count += 1
+            except Exception as e:
+                self.log(f"Port {port} temizlenemedi: {str(e)}")
+
+        try:
+            result = subprocess.run(
+                'wmic process where "CommandLine like \'%http.server%\'" get ProcessId,CommandLine /FORMAT:LIST',
+                shell=True,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            pids = []
+            current_cmd = ''
+            for raw_line in result.stdout.splitlines():
+                line = raw_line.strip()
+                if line.startswith('CommandLine='):
+                    current_cmd = line.split('=', 1)[1]
+                elif line.startswith('ProcessId='):
+                    pid = line.split('=', 1)[1].strip()
+                    if pid and 'http.server' in current_cmd:
+                        pids.append(pid)
+                    current_cmd = ''
+
+            for pid in set(pids):
+                subprocess.run(f'taskkill /PID {pid} /F', shell=True, capture_output=True, text=True, errors='replace')
+                self.log(f"http.server sureci kapatildi (PID: {pid})")
+                stopped_count += 1
+        except Exception as e:
+            self.log(f"http.server taramasi yapilamadi: {str(e)}")
+
+        if stopped_count:
+            self.status_label.config(text="Sunucu durduruldu")
+            self.log("Sunucu durdurma/temizleme tamamlandi")
+        else:
+            self.status_label.config(text="Aktif sunucu bulunamadi")
+            self.log("Aktif sunucu bulunamadi")
+
     def open_browser(self):
-        webbrowser.open('http://localhost:8080/admin-panel-optimized.html')
+        webbrowser.open(f'http://localhost:{SERVER_PORT}/admin-panel-optimized.html')
         self.log("🌐 Tarayıcı açılıyor...")
+
+    def open_widget_browser(self):
+        webbrowser.open(f'http://localhost:{SERVER_PORT}/chatbot-widget-optimized.html')
+        self.log("🤖 Widget tarayıcıda açılıyor...")
     
     # Link açma komutları
     def open_admin_panel(self):

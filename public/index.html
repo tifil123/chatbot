@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot</title>
+  <script>
+    const hash = window.location.hash || '';
+    const query = window.location.search || '';
+    if (hash.includes('type=recovery') || query.includes('type=recovery') || hash.includes('access_token=')) {
+      window.location.replace('/reset-password.html' + query + hash);
+    } else {
+      window.location.replace('/admin-panel-optimized.html');
+    }
+  </script>
+</head>
+<body>
+  <p>Yonlendiriliyor...</p>
+</body>
+</html>

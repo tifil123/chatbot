@@ -740,7 +740,7 @@
     </div>
 
     <div class="chat-input-area" id="chatInputArea" style="display:none">
-      <div style="padding-bottom:10px;border-bottom:1px solid #e9ecef;margin-bottom:10px" id="configArea">
+      <div style="display:none;padding-bottom:10px;border-bottom:1px solid #e9ecef;margin-bottom:10px" id="configArea">
         <div style="padding:10px;background:#f8f9fa;border-radius:8px;margin-bottom:8px">
           <div style="font-size:0.75rem;color:#6c757d;margin-bottom:3px">Firebase Database:</div>
           <div style="font-size:0.7rem;color:#007bff;word-break:break-all" id="firebaseUrlDisplay">Yükleniyor...</div>
@@ -785,6 +785,9 @@
     let widgetOpen = false;
     let widgetUnread = 0;
     let widgetConversationHistory = [];
+    let sentScheduledMessageKeys = new Set();
+    let scheduledMessageSentForSession = false;
+    let scheduledMessageInProgress = false;
 
     // Widget Reply özelliği için global değişkenler
     let widgetReplyingTo = null;  // {messageId, message, sender}
@@ -1171,6 +1174,8 @@
 
         // widgetConversationHistory'yi temizle ve yeniden doldur
         widgetConversationHistory = [];
+        sentScheduledMessageKeys = new Set();
+        scheduledMessageSentForSession = false;
 
         // Her mesajı widget'a ekle VE conversation history'ye ekle
         sortedMessages.forEach(msg => {
@@ -1209,6 +1214,46 @@
     /**
      * Telefon numarasını gönder ve session bul/oluştur
      */
+    async function hasScheduledMessageBeenSent(ruleId, rule) {
+      const onceKey = `scheduled_once_${widgetSessionId}`;
+      if (scheduledMessageInProgress || scheduledMessageSentForSession || localStorage.getItem(onceKey) === 'true') {
+        scheduledMessageSentForSession = true;
+        return true;
+      }
+
+      const messageKey = `${ruleId}:${rule.message || ''}`;
+      if (sentScheduledMessageKeys.has(messageKey)) return true;
+
+      const messagesData = await firebaseService.read('sessions/' + widgetSessionId + '/messages');
+      if (!messagesData) return false;
+
+      const sentBefore = Object.values(messagesData).some(msg => {
+        if (!msg || !msg.scheduled) return false;
+        const scheduledRuleId = msg.replyTo?.scheduledRuleId || 'legacy';
+        return scheduledRuleId === ruleId || msg.message === rule.message || msg.scheduled === true;
+      });
+
+      if (sentBefore) {
+        sentScheduledMessageKeys.add(messageKey);
+        scheduledMessageSentForSession = true;
+        localStorage.setItem(onceKey, 'true');
+      }
+
+      return sentBefore;
+    }
+
+    async function ensureWidgetAuth() {
+      let user = firebaseService.getCurrentUser();
+      if (user?.id) return user;
+
+      user = await firebaseService.signInAnonymously();
+      if (!user?.id) {
+        throw new Error('Anonim ziyaretçi oturumu oluşturulamadı.');
+      }
+
+      return user;
+    }
+
     async function submitPhoneNumber() {
       const input = document.getElementById('phoneInput');
       const errorEl = document.getElementById('phoneError');
@@ -1228,6 +1273,8 @@
       submitBtn.textContent = 'Bağlanıyor...';
 
       try {
+        await ensureWidgetAuth();
+
         const cleanedPhone = validation.cleaned;
         widgetUserPhone = cleanedPhone;
 
@@ -1236,6 +1283,10 @@
 
         // Firebase'de bu telefona ait session var mı?
         const existingSession = await findSessionByPhone(cleanedPhone);
+
+        if (existingSession?.error) {
+          throw new Error('Sohbet geçmişi kontrol edilemedi.');
+        }
 
         if (existingSession) {
           // Mevcut session'ı kullan
@@ -1260,14 +1311,15 @@
           console.log('🆕 Yeni session oluşturuldu:', widgetSessionId);
 
           // Session bilgilerini kaydet
-          await firebaseService.update('sessions/' + widgetSessionId + '/info', {
+          await firebaseService.write('sessions/' + widgetSessionId + '/info', {
             startTime: Date.now(),
             lastActive: Date.now(),
             userAgent: navigator.userAgent.slice(0, 100),
             status: 'active',
             mode: 'auto',
             customName: 'isimsiz',
-            phoneNumber: cleanedPhone
+            phoneNumber: cleanedPhone,
+            ownerUserId: firebaseService.getCurrentUser()?.id
           });
 
           hidePhoneForm();
@@ -1285,6 +1337,7 @@
       } catch (error) {
         console.error('❌ Telefon kayıt hatası:', error);
         errorEl.textContent = 'Bir hata oluştu, lütfen tekrar deneyin.';
+        errorEl.textContent = error?.message || errorEl.textContent;
         submitBtn.disabled = false;
         submitBtn.textContent = 'Sohbete Başla 💬';
       }
@@ -1345,6 +1398,7 @@
 
         // Supabase Service katmanını kullanarak bağlan
         widgetDb = await firebaseService.connect(supabaseConfig);
+        await firebaseService.signInAnonymously();
 
         console.log('🔥 Supabase bağlandı');
 
@@ -1362,7 +1416,12 @@
           // Firebase'de bu telefona ait session var mı?
           const existingSession = await findSessionByPhone(savedPhone);
 
-          if (existingSession) {
+          if (existingSession?.error) {
+            console.error('Session arama basarisiz, sayfayi yenileyin');
+            hidePhoneForm();
+            addWidgetMessage('Baglanti sorunu yasandi. Lutfen sayfayi yenileyin.', false);
+
+          } else if (existingSession) {
             // Mevcut session'ı kullan
             widgetSessionId = existingSession.sessionId;
             localStorage.setItem('widget_session_id', widgetSessionId);
@@ -1385,7 +1444,7 @@
             document.getElementById('widgetInput').disabled = false;
             document.getElementById('widgetSendBtn').disabled = false;
 
-          } else if (existingSession && existingSession.error === 'search_failed') {
+          } else if (false && existingSession && existingSession.error === 'search_failed') {
             // Session arama başarısız oldu - yeni session OLUŞTURMA, hata göster
             console.error('❌ Session arama başarısız, sayfayı yenileyin');
             hidePhoneForm();
@@ -1397,14 +1456,15 @@
             localStorage.setItem('widget_session_id', widgetSessionId);
             console.log('🆕 Yeni session oluşturuldu:', widgetSessionId);
 
-            await firebaseService.update('sessions/' + widgetSessionId + '/info', {
+            await firebaseService.write('sessions/' + widgetSessionId + '/info', {
               startTime: Date.now(),
               lastActive: Date.now(),
               userAgent: navigator.userAgent.slice(0, 100),
               status: 'active',
               mode: 'auto',
               customName: 'isimsiz',
-              phoneNumber: savedPhone
+              phoneNumber: savedPhone,
+              ownerUserId: firebaseService.getCurrentUser()?.id
             });
 
             hidePhoneForm();
@@ -1608,7 +1668,8 @@
             userAgent: navigator.userAgent.slice(0, 100),
             status: 'active',
             controlMode: 'auto',
-            customName: 'isimsiz'
+            customName: 'isimsiz',
+            ownerUserId: firebaseService.getCurrentUser()?.id
           };
 
           await firebaseService.write(sessionPath + '/info', sessionInfo);
@@ -1709,7 +1770,7 @@
                   inRange = currentMinutes >= startMinutes || currentMinutes < endMinutes;
                 }
 
-                if (inRange) {
+                if (inRange && !(await hasScheduledMessageBeenSent(ruleId, rule))) {
                   console.log('⏰ Zamanlanmış mesaj kuralı eşleşti:', rule.startTime, '-', rule.endTime);
                   hideWidgetTyping();
 
@@ -1717,18 +1778,28 @@
                   const userMsgReplyTo = {
                     messageId: 'user_' + Date.now(),
                     message: text.slice(0, 50),
-                    sender: 'user'
+                    sender: 'user',
+                    scheduledRuleId: ruleId
                   };
 
+                  scheduledMessageInProgress = true;
+                  scheduledMessageSentForSession = true;
+                  localStorage.setItem(`scheduled_once_${widgetSessionId}`, 'true');
+
                   addWidgetMessage(rule.message, false, null, userMsgReplyTo);
-                  await firebaseService.push('sessions/' + widgetSessionId + '/messages', {
-                    sender: 'bot',
-                    message: rule.message,
-                    timestamp: Date.now(),
-                    auto: true,
-                    scheduled: true,
-                    replyTo: userMsgReplyTo
-                  });
+                  try {
+                    await firebaseService.push('sessions/' + widgetSessionId + '/messages', {
+                      sender: 'bot',
+                      message: rule.message,
+                      timestamp: Date.now(),
+                      auto: true,
+                      scheduled: true,
+                      replyTo: userMsgReplyTo
+                    });
+                  } finally {
+                    scheduledMessageInProgress = false;
+                  }
+                  sentScheduledMessageKeys.add(`${ruleId}:${rule.message || ''}`);
 
                   widgetConversationHistory.push({ sender: 'bot', message: rule.message });
                   if (widgetConversationHistory.length > 10) widgetConversationHistory.shift();
@@ -1874,20 +1945,8 @@
       if (supabaseConfig) {
         connectWidgetFirebaseWithUrl();
 
-        // Display'da göster
-        const displayElement = document.getElementById('firebaseUrlDisplay');
-        if (displayElement) {
-          displayElement.textContent = supabaseConfig.url;
-        }
       } else {
         console.error('❌ Supabase config bulunamadı! Config dosyası yüklenmemiş olabilir.');
-
-        // Display'da hata göster
-        const displayElement = document.getElementById('firebaseUrlDisplay');
-        if (displayElement) {
-          displayElement.textContent = '❌ Config bulunamadı';
-          displayElement.style.color = '#dc3545';
-        }
       }
     });
 

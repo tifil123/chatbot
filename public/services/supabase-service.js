@@ -34,6 +34,7 @@ class SupabaseService {
             lastReadTimestamp: 'last_read_timestamp',
             lastMessage: 'last_message',
             controlMode: 'control_mode',
+            ownerUserId: 'owner_user_id',
             fromAdmin: 'from_admin',
             mode: 'control_mode',
             contextTags: 'context_tags',
@@ -64,6 +65,7 @@ class SupabaseService {
             last_read_timestamp: 'lastReadTimestamp',
             last_message: 'lastMessage',
             control_mode: 'controlMode',
+            owner_user_id: 'ownerUserId',
             from_admin: 'fromAdmin',
             context_tags: 'contextTags',
             end_time: 'endTime',
@@ -375,8 +377,18 @@ class SupabaseService {
                 throw new Error('Supabase URL veya Anon Key eksik!');
             }
 
-            // Supabase client oluştur
+            const isAdminPage = window.location?.pathname?.includes('admin-panel') || false;
+            const storageKey = isAdminPage ? 'chatbot_admin_auth' : 'chatbot_widget_auth';
+
+            // Supabase client olustur. Admin panel ve widget ayni domainde calissa bile
+            // oturumlari karismasin diye farkli storageKey kullaniyoruz.
             this.client = supabase.createClient(url, key, {
+                auth: {
+                    storageKey,
+                    persistSession: true,
+                    autoRefreshToken: true,
+                    detectSessionInUrl: false,
+                },
                 realtime: {
                     params: {
                         eventsPerSecond: 10,
@@ -386,7 +398,7 @@ class SupabaseService {
 
             this.isConnected = true;
             this.retryCount = 0;
-            this.currentUser = { uid: 'anonymous_' + Date.now() };
+            this.currentUser = null;
 
             console.log('✅ Supabase bağlantısı başarılı:', url);
             return this.client;
@@ -409,9 +421,50 @@ class SupabaseService {
      * Anonim giriş simülasyonu (Firebase uyumluluğu için)
      */
     async signInAnonymously() {
-        this.currentUser = { uid: 'anonymous_' + Date.now() };
-        console.log('✅ Anonim oturum oluşturuldu:', this.currentUser.uid);
+        const client = await this.connect();
+        const { data: sessionData, error: sessionError } = await client.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (sessionData.session?.user) {
+            this.currentUser = sessionData.session.user;
+            return this.currentUser;
+        }
+
+        const { data, error } = await client.auth.signInAnonymously();
+        if (error) throw error;
+        this.currentUser = data.user || null;
         return this.currentUser;
+    }
+
+    async signInWithEmail(email, password) {
+        const client = await this.connect();
+        const { data, error } = await client.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        this.currentUser = data.user || null;
+        return data;
+    }
+
+    async getAuthSession() {
+        const client = await this.connect();
+        const { data, error } = await client.auth.getSession();
+        if (error) throw error;
+        this.currentUser = data.session?.user || this.currentUser;
+        return data.session || null;
+    }
+
+    isAdminUser(user = this.currentUser) {
+        const appRole = user?.app_metadata?.role;
+        const userRole = user?.user_metadata?.role;
+        return appRole === 'admin' || userRole === 'admin';
+    }
+
+    async signOut() {
+        if (!this.client) return;
+        this.unsubscribeAll();
+        const { error } = await this.client.auth.signOut();
+        if (error) throw error;
+        this.currentUser = null;
+        this.isConnected = false;
+        this.client = null;
     }
 
     /**
@@ -621,6 +674,9 @@ class SupabaseService {
                 // sessions/{id}/info → UPSERT session
                 const snakeData = this._convertKeysToSnake(data);
                 snakeData.id = parsed.id;
+                if (this.currentUser?.id && !this.isAdminUser()) {
+                    snakeData.owner_user_id = this.currentUser.id;
+                }
 
                 const { error } = await this.client
                     .from('sessions')
@@ -779,6 +835,9 @@ class SupabaseService {
                         typeof value === 'object' ? value : {}
                     );
                     snakeData.id = parsed.id;
+                    if (service.currentUser?.id && !service.isAdminUser()) {
+                        snakeData.owner_user_id = service.currentUser.id;
+                    }
                     const { error } = await service.client
                         .from(parsed.table)
                         .upsert(snakeData, { onConflict: 'id' });
@@ -917,14 +976,17 @@ class SupabaseService {
             console.log(`📡 Supabase channel durumu (${listenerKey}):`, status);
         });
 
+        const refreshInterval = setInterval(fetchAndNotify, 10000);
+
         // Channel'ı kaydet
         this.channels.set(listenerKey, channel);
-        this.listeners.set(listenerKey, { path, callback, eventType: 'value' });
+        this.listeners.set(listenerKey, { path, callback, eventType: 'value', refreshInterval });
 
         console.log(`✅ Supabase listener kuruldu: ${listenerKey}`);
 
         // Unsubscribe fonksiyonu döndür
         return () => {
+            clearInterval(refreshInterval);
             this.client.removeChannel(channel);
             this.channels.delete(listenerKey);
             this.listeners.delete(listenerKey);
@@ -1003,6 +1065,11 @@ class SupabaseService {
      * Tüm listener'ları temizle
      */
     unsubscribeAll() {
+        this.listeners.forEach((listener) => {
+            if (listener.refreshInterval) {
+                clearInterval(listener.refreshInterval);
+            }
+        });
         this.channels.forEach((channel) => {
             this.client.removeChannel(channel);
         });
