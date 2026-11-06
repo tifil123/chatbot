@@ -103,7 +103,7 @@ Kontrol Merkezi, projenin yedekleme, deploy, sunucu yönetimi, Git işlemleri ve
 
 | Buton | Açıklama | Aksiyon |
 |---|---|---|
-| 🚀 Deploy | GitHub Pages'e yayınla | `git add . && git commit -m "Deploy - {tarih}" && git push origin main` |
+| 🚀 Deploy | GitHub Pages'e yayınla ve sonucu bekle | Sadece `main` dalında: değişiklik varsa commit, gönderilmemiş commit varsa push, son deploy başarısızsa yeniden başlatma. GitHub CLI (`gh`) gerekir. |
 | 📊 Dashboard | Supabase Dashboard'u aç | Tarayıcı: `supabase.com/dashboard/project/ydhlveimkpkncyizdjjy` |
 | 📝 SQL Editor | Supabase SQL Editor'ü aç | Tarayıcı: `supabase.com/dashboard/project/ydhlveimkpkncyizdjjy/sql/new` |
 

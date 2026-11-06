@@ -8,10 +8,104 @@ from tkinter import ttk, scrolledtext, messagebox
 import subprocess
 import threading
 import os
+import time
 import webbrowser
 from datetime import datetime
 
 SERVER_PORT = 8787
+
+# Deploy'u yayinlayan GitHub Actions is akisi
+DEPLOY_WORKFLOW = 'deploy.yml'
+
+
+def deploy_to_pages(run, log, commit_message, wait=time.sleep):
+    """Degisiklikleri yayinlar ve GitHub Pages sonucunu bekler.
+
+    run(args) -> (cikis_kodu, cikti). Basarida True doner. Commit edilecek bir
+    sey yoksa push yine yapilir; basarisiz son deploy yeniden baslatilir.
+    """
+    def git(*args):
+        return run(['git', *args])
+
+    def fail(message, output=''):
+        if output.strip():
+            log(output.strip())
+        log(f"❌ {message}")
+        return False
+
+    branch = git('branch', '--show-current')[1].strip()
+    if branch != 'main':
+        return fail(f"Deploy sadece main dalindan yapilir (su an: {branch or 'bilinmiyor'})")
+
+    code, output = git('add', '.')
+    if code != 0:
+        return fail("git add basarisiz", output)
+
+    if git('diff', '--cached', '--quiet')[0] != 0:
+        code, output = git('commit', '-m', commit_message)
+        if code != 0:
+            return fail("Commit basarisiz", output)
+        log(f"📝 Commit olusturuldu: {commit_message}")
+    else:
+        log("ℹ️ Commit edilecek degisiklik yok")
+
+    code, output = git('fetch', 'origin', 'main')
+    if code != 0:
+        return fail("GitHub'a baglanilamadi", output)
+
+    behind = git('rev-list', '--count', 'HEAD..origin/main')[1].strip()
+    if behind != '0':
+        return fail(f"GitHub'da {behind} yeni commit var, once Pull yapin")
+
+    head = git('rev-parse', 'HEAD')[1].strip()
+    ahead = git('rev-list', '--count', 'origin/main..HEAD')[1].strip()
+    if ahead != '0':
+        log(f"⬆️ {ahead} commit gonderiliyor...")
+        code, output = git('push', 'origin', 'main')
+        if code != 0:
+            return fail("Push basarisiz", output)
+
+    def latest_run():
+        """Bu commit icin son deploy calismasi: (id, status, conclusion) veya None."""
+        code, output = run(['gh', 'run', 'list', '--workflow', DEPLOY_WORKFLOW,
+                            '--commit', head, '--limit', '1', '--json',
+                            'databaseId,status,conclusion', '--jq',
+                            '.[0] | "\\(.databaseId) \\(.status) \\(.conclusion)"'])
+        parts = output.split()
+        return tuple(parts + [''])[:3] if code == 0 and len(parts) >= 2 else None
+
+    deployment = None
+    for _ in range(12):
+        deployment = latest_run()
+        if deployment or ahead == '0':
+            break
+        wait(5)
+
+    if deployment is None:
+        if ahead != '0':
+            log("⚠️ Push tamam, ancak deploy sonucu okunamadi. GitHub Actions sekmesini kontrol edin.")
+            return True
+        return fail("Bu commit icin deploy bulunamadi. GitHub Actions sekmesini kontrol edin.")
+
+    run_id, status, conclusion = deployment
+    if status == 'completed' and conclusion == 'success':
+        if ahead == '0':
+            log("✅ Site zaten guncel, yayinlanacak bir sey yok")
+            return True
+    elif status == 'completed':
+        log(f"🔁 Son deploy basarisiz ({conclusion}), yeniden baslatiliyor...")
+        code, output = run(['gh', 'run', 'rerun', run_id, '--failed'])
+        if code != 0:
+            return fail("Deploy yeniden baslatilamadi", output)
+        wait(5)
+
+    log("⏳ GitHub Pages deploy'u bekleniyor...")
+    code, output = run(['gh', 'run', 'watch', run_id, '--exit-status'])
+    if code != 0:
+        return fail("GitHub Pages deploy'u basarisiz. Bu butona tekrar basarak yeniden deneyebilirsiniz.")
+    log("✅ Site yayinda. Tarayici onbellegi icin birkac dakika bekleyip Ctrl+Shift+R yapin.")
+    return True
+
 
 class CommandCenter:
     def __init__(self, root):
@@ -565,11 +659,55 @@ class CommandCenter:
     
     # Supabase komutları
     def github_pages_deploy(self):
+        with self.process_lock:
+            if self.is_running:
+                self.log("⚠️ Başka bir komut çalışıyor, lütfen bekleyin...")
+                self.status_label.config(text="⚠️ Komut çalışıyor, bekleyin")
+                return
+            self.is_running = True
+
         self.clear_output()
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
         commit_message = f"Deploy - {timestamp}"
         self.log("🚀 GitHub Pages'e deploy ediliyor...")
-        self.run_command(f'git add . && git commit -m "{commit_message}" && git push origin main')
+        self.status_label.config(text="⏳ Deploy çalışıyor...")
+
+        def log(message):
+            self.root.after(0, lambda: self.log(message))
+
+        def step(args):
+            with self.process_lock:
+                self.running_process = subprocess.Popen(
+                    args,
+                    cwd=self.project_folder,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                process = self.running_process
+            output = process.communicate()[0]
+            return process.returncode, output
+
+        def worker():
+            try:
+                ok = deploy_to_pages(step, log, commit_message)
+            except FileNotFoundError as e:
+                ok = False
+                log(f"❌ Komut bulunamadı: {e.filename}. Git ve GitHub CLI (gh) kurulu olmalı.")
+            except Exception as e:
+                ok = False
+                log(f"❌ Hata: {e}")
+            finally:
+                with self.process_lock:
+                    self.running_process = None
+                    self.is_running = False
+            text = "✅ Deploy tamamlandı" if ok else "❌ Deploy başarısız"
+            self.root.after(0, lambda: self.status_label.config(text=text))
+
+        threading.Thread(target=worker, daemon=True).start()
     
     def supabase_dashboard(self):
         webbrowser.open('https://supabase.com/dashboard/project/ydhlveimkpkncyizdjjy')
