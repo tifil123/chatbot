@@ -9,30 +9,39 @@ chatbot/
 ├── public/                              # Frontend dosyaları
 │   ├── admin-panel-optimized.html         # Admin paneli arayüzü
 │   ├── chatbot-widget-optimized.html      # Chatbot widget'ı (kullanıcı arayüzü)
+│   ├── reset-password.html                # Şifre sıfırlama sayfası
 │   ├── manifest.json                      # PWA manifest dosyası
 │   ├── sw.js                              # Service Worker (çevrimdışı destek)
+│   ├── index.html                         # Ana yönlendirme sayfası
 │   ├── config/
 │   │   └── supabase-config.js               # Supabase bağlantı ayarları
 │   └── services/
+│       ├── supabase-service.js              # Supabase veritabanı servisi
 │       ├── analytics-service.js             # Analitik servisi
 │       ├── cache-service.js                 # Önbellek servisi
 │       ├── file-service.js                  # Dosya yönetim servisi
 │       ├── notification-service.js          # Bildirim servisi
 │       ├── rate-limit-service.js            # Rate limit servisi
-│       ├── supabase-service.js              # Supabase veritabanı servisi
 │       ├── ui-service.js                    # UI yardımcı servisi
 │       └── validation-service.js            # Doğrulama servisi
 │
 ├── server/
 │   └── db/
-│       ├── schema.sql                       # Supabase veritabanı şeması
+│       ├── schema.sql                       # Supabase veritabanı şeması + RLS
+│       ├── secure-rls-policies.sql           # RLS güvenlik politikaları (fonksiyonlu)
+│       ├── secure-rls-policies-simple.sql    # RLS politikaları (basitleştirilmiş)
+│       ├── secure-widget-ownership.sql       # Widget sahiplik politikaları
+│       ├── check-security-status.sql         # Güvenlik durum kontrolü
 │       ├── migrate-firebase-to-supabase.js  # Firebase → Supabase göç scripti
 │       ├── package.json                     # Node.js bağımlılıkları
 │       └── package-lock.json
 │
 ├── docs/                                # Proje dokümantasyonu
 │   ├── api.md                             # API dokümantasyonu
-│   └── components.md                      # Bileşen dokümantasyonu
+│   ├── components.md                      # Bileşen dokümantasyonu
+│   ├── supabase-service.md                # Supabase servis detay dokümantasyonu
+│   ├── database.md                        # Veritabanı şema ve güvenlik
+│   └── kontrol-merkezi.md                 # Masaüstü kontrol merkezi
 │
 ├── backup-tools/                        # Yedekleme araçları
 │   ├── yedekle.bat                        # Manuel yedekleme scripti
@@ -65,6 +74,9 @@ chatbot/
 ### 3. Dokümantasyon
 - API referansı: `docs/api.md`
 - Bileşen detayları: `docs/components.md`
+- Supabase servis detayı: `docs/supabase-service.md`
+- Veritabanı şema ve güvenlik: `docs/database.md`
+- Kontrol merkezi: `docs/kontrol-merkezi.md`
 
 ## � Özellikler
 
@@ -139,5 +151,5 @@ Bu proje [Tifil123 Chatbot — Non-Commercial License 1.0](LICENSE) ile lisansla
 
 ---
 
-**Son Güncelleme:** 2026-02-15
+**Son Güncelleme:** 2026-07-10
 **Versiyon:** 2.0.0

@@ -437,7 +437,7 @@ function releaseControl() {
 
 ### Debug Panel Özellikleri
 
-- **Sistem Durumu**: Firebase, Cache, Analytics durumu
+- **Sistem Durumu**: Supabase, Cache, Analytics durumu
 - **Performans Metrikleri**: Sayfa yükleme süresi, cache hit oranı
 - **Log Görüntüleme**: Sistem loglarını gösterme
 - **Test Araçları**: Servis testleri
@@ -534,8 +534,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setTheme(savedTheme);
   
   // Servisleri başlat
-  if (window.firebaseService) {
-    firebaseService.connect();
+  if (window.supabaseService) {
+    supabaseService.connect();
   }
   
   // Event listener'ları kur
@@ -706,7 +706,7 @@ describe('Button Component', () => {
 
 ### İsteğe Bağlı Servisler
 
-- **Firebase Service**: Veritabanı işlemleri için
+- **Supabase Service**: Veritabanı işlemleri için
 - **Analytics Service**: Kullanıcı davranış takibi için
 - **Cache Service**: Performans optimizasyonu için
 
@@ -736,4 +736,4 @@ function debugLog(message) {
 
 ---
 
-*Son güncelleme: 2025-12-11*
+*Son güncelleme: 2026-07-10*

@@ -2,11 +2,13 @@
 
 ## Genel Bakış
 
-Bu API dokümantasyonu, Chatbot projesindeki tüm servislerin ve bileşenlerin kullanımını açıklar. API'ler modern JavaScript standartlarına göre tasarlanmıştır ve hem browser hem de Node.js ortamlarında çalışabilir.
+Bu API dokümantasyonu, Chatbot projesindeki yardımcı servislerin kullanımını açıklar. API'ler modern JavaScript standartlarına göre tasarlanmıştır ve browser ortamında çalışır.
+
+> **Not:** Ana veritabanı servisi (`supabase-service.js`) için ayrı ve detaylı dokümantasyon mevcuttur: [Supabase Service Dokümantasyonu](supabase-service.md)
 
 ## 📚 İçerik
 
-- [Firebase Service](#firebase-service) - Veritabanı işlemleri
+- [Supabase Service](supabase-service.md) - Veritabanı, kimlik doğrulama, real-time *(ayrı doküman)*
 - [Cache Service](#cache-service) - Önbellek yönetimi
 - [Rate Limit Service](#rate-limit-service) - İstek sınırlama
 - [Validation Service](#validation-service) - Input doğrulama
@@ -17,118 +19,7 @@ Bu API dokümantasyonu, Chatbot projesindeki tüm servislerin ve bileşenlerin k
 
 ---
 
-## 🔥 Firebase Service
-
-Firebase Realtime Database ile iletişim için merkezi servis.
-
-### 🚀 Kurulum
-
-```javascript
-// Servisi import et
-import { firebaseService } from './services/firebase-service.js';
-
-// Veya script tag ile yükle
-<script src="services/firebase-service.js"></script>
-```
-
-### 📋 Metotlar
-
-#### `connect(config?)`
-Firebase'e bağlanır.
-
-```javascript
-const db = await firebaseService.connect({
-  databaseURL: 'https://your-project.firebaseio.com'
-});
-```
-
-**Parametreler:**
-- `config` (object, isteğe bağlı): Firebase konfigürasyonu
-  - `databaseURL` (string): Veritabanı URL'i
-  - `projectId` (string): Proje ID'si
-
-**Döner:** `Promise<Object>` - Database referansı
-
-#### `read(path)`
-Belirtilen yoldaki veriyi okur.
-
-```javascript
-const data = await firebaseService.read('users/user1');
-```
-
-**Parametreler:**
-- `path` (string): Veritabanı yolu
-
-**Döner:** `Promise<any>` - Okunan veri
-
-#### `write(path, data)`
-Belirtilen yola veri yazar.
-
-```javascript
-await firebaseService.write('users/user1', {
-  name: 'John Doe',
-  email: 'john@example.com'
-});
-```
-
-**Parametreler:**
-- `path` (string): Veritabanı yolu
-- `data` (object): Yazılacak veri
-
-**Döner:** `Promise<void>`
-
-#### `update(path, data)`
-Belirtilen yoldaki veriyi günceller.
-
-```javascript
-await firebaseService.update('users/user1', {
-  lastSeen: Date.now()
-});
-```
-
-**Parametreler:**
-- `path` (string): Veritabanı yolu
-- `data` (object): Güncellenecek veri
-
-**Döner:** `Promise<void>`
-
-#### `remove(path)`
-Belirtilen yoldaki veriyi siler.
-
-```javascript
-await firebaseService.remove('users/user1');
-```
-
-**Parametreler:**
-- `path` (string): Veritabanı yolu
-
-**Döner:** `Promise<void>`
-
-#### `subscribe(path, callback, eventType?)`
-Belirtilen yoldaki değişiklikleri dinler.
-
-```javascript
-const unsubscribe = firebaseService.subscribe('messages', (snapshot) => {
-  const data = snapshot.val();
-  console.log('New message:', data);
-}, 'child_added');
-```
-
-**Parametreler:**
-- `path` (string): Veritabanı yolu
-- `callback` (function): Callback fonksiyonu
-- `eventType` (string): Event tipi ('value', 'child_added', vb.)
-
-**Döner:** `Function` - Unsubscribe fonksiyonu
-
-#### `getDatabase()`
-Aktif database referansını döndürür.
-
-```javascript
-const db = firebaseService.getDatabase();
-```
-
-**Döner:** `Object` - Database referansı
+> **📌 Veritabanı servisi bu dosyada değil, ayrı bir dokümanda yer almaktadır.** Supabase bağlantısı, kimlik doğrulama, CRUD işlemleri, real-time abonelikler ve dosya yükleme için bkz: [supabase-service.md](supabase-service.md)
 
 ---
 
@@ -546,22 +437,18 @@ uiService.confirm('Delete this item?', 'Confirm Delete', () => {
 
 ## 🔧 Konfigürasyon
 
-### Firebase Konfigürasyonu
+### Supabase Konfigürasyonu
 
 ```javascript
-// config/firebase-config.js
-const FIREBASE_CONFIG = {
-  databaseURL: 'https://your-project.firebaseio.com',
-  projectId: 'your-project-id',
-  environments: {
-    development: {
-      databaseURL: 'https://dev-project.firebaseio.com',
-      debug: true
-    },
-    production: {
-      databaseURL: 'https://prod-project.firebaseio.com',
-      debug: false
-    }
+// config/supabase-config.js
+const SUPABASE_CONFIG = {
+  url: 'https://xxx.supabase.co',
+  anonKey: 'sb_publishable_xxx',
+  settings: {
+    autoConnect: true,
+    retryAttempts: 3,
+    retryDelay: 1000,
+    timeout: 10000
   }
 };
 ```
@@ -650,15 +537,17 @@ window.open('/src/debug-panel.html');
 
 ## 🔗 İlişkili Belgeler
 
+- [Supabase Service Dokümantasyonu](supabase-service.md)
+- [Veritabanı ve Güvenlik](database.md)
 - [Component Dokümantasyonu](components.md)
+- [Kontrol Merkezi](kontrol-merkezi.md)
 - [Kurulum Kılavuzu](../README.md)
-- [Örnek Projeler](../examples/)
 
 ---
 
 ## 📄 Lisans
 
-Bu proje MIT Lisansı altında dağıtılmaktadır. Detaylar için [LICENSE](../LICENSE) dosyasına bakın.
+Bu proje [Tifil123 Chatbot — Non-Commercial License 1.0](../LICENSE) ile lisanslanmıştır.
 
 ---
 
@@ -687,10 +576,12 @@ Sorularınız veya önerileriniz için:
 ## 📈 Sürüm Geçmişi
 
 ### v2.0.0 (2025-12-11)
+- 🆕 Supabase'e geçiş (Firebase'den migration)
 - 🆕 Yeni servisler eklendi
+- 🔒 RLS güvenlik politikaları
+- 🔐 Admin/Ziyaretçi rol ayrımı
 - 🎨 UI/UX iyileştirmeleri
 - 📱 Mobil optimizasyonları
-- 🔒 Güvenlik güçlendirmeleri
 - 🚀 Performans iyileştirmeleri
 
 ### v1.0.0 (2025-11-01)
@@ -701,4 +592,4 @@ Sorularınız veya önerileriniz için:
 
 ---
 
-*Son güncelleme: 2025-12-11*
+*Son güncelleme: 2026-07-10*
