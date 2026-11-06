@@ -1710,7 +1710,9 @@
   <!-- UUID Kütüphanesi -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuidv4.min.js"></script>
   <!-- Supabase JS SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"
+    integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O"
+    crossorigin="anonymous"></script>
   <!-- Supabase Service Katmanları -->
   <script src="config/supabase-config.js"></script>
   <script src="services/supabase-service.js"></script>
@@ -3407,27 +3409,6 @@
       attachAdminMedia(image);
     });
 
-    // ESC tuşu ile sohbetten çıkış
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') {
-        // Önce açık modal var mı kontrol et
-        const openModal = document.querySelector('.modal.show');
-        if (openModal) {
-          openModal.classList.remove('show');
-          return;
-        }
-
-        // Modal yoksa ve sohbet açıksa kapat
-        if (selectedUser) {
-          selectedUser = null;
-          document.getElementById('chatTitle').textContent = '💬 Mesajlar';
-          document.getElementById('messageList').innerHTML = '<div class="empty"><div class="icon">💬</div>Kullanıcı seçin</div>';
-          document.getElementById('replyContainer').style.display = 'none';
-          document.querySelectorAll('.user-item').forEach(item => item.classList.remove('selected'));
-        }
-      }
-    });
-
     // Modal input'ları için Enter tuşu desteği
     document.getElementById('newUserName').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
@@ -3447,13 +3428,6 @@
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         confirmTeach();
-      }
-    });
-
-    document.getElementById('alternativeResponse').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        confirmAlternativeResponse();
       }
     });
 
@@ -3541,6 +3515,9 @@
       document.getElementById('chatTitle').textContent = '💬 Mesajlar';
       document.getElementById('messageList').innerHTML = '<div class="empty"><div class="icon">💬</div>Kullanıcı seçin</div>';
       document.getElementById('replyInput').value = '';
+      // Bekleyen ek veya yanıt sonraki sohbete taşınmasın
+      clearMediaPreview();
+      clearReplyTo();
 
       // Kullanıcı listesindeki aktif işaretini kaldır
       document.querySelectorAll('.user-item').forEach(item => {
