@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self' https://ydhlveimkpkncyizdjjy.supabase.co wss://ydhlveimkpkncyizdjjy.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>AI Admin Panel</title>
   <style>
     * {
@@ -1893,6 +1894,41 @@
      * @param {string} phone - Telefon numarası
      * @returns {string} Formatlanmış telefon numarası
      */
+    // ============ GUVENLI CIKTI YARDIMCILARI ============
+    // Ziyaretciden gelen her deger HTML'e yazilmadan once bunlardan gecmelidir.
+
+    /** Metni HTML icerigi veya cift tirnakli attribute icin guvenli hale getirir. */
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[ch]));
+    }
+
+    /** onclick="fn(...)" icindeki bir argumani tirnaklariyla birlikte uretir. */
+    function jsArg(value) {
+      return escapeHtml(JSON.stringify(String(value ?? '')));
+    }
+
+    /** Sadece https adreslerine izin verir, digerleri icin bos doner. */
+    function safeMediaUrl(value) {
+      try {
+        const url = new URL(String(value));
+        return url.protocol === 'https:' ? url.href : '';
+      } catch {
+        return '';
+      }
+    }
+
+    /** Duz metni kacirir, satir sonlarini ve baglantilari sonradan ekler. */
+    function formatMessageText(text) {
+      return linkify(escapeHtml(text).replace(/\n/g, '<br>'));
+    }
+
+    function linkify(text) {
+      const urlPattern = /(https?:\/\/[^\s<]+)/g;
+      return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#a5b4fc;text-decoration:underline">$1</a>');
+    }
+
     function formatPhoneNumber(phone) {
       if (!phone || phone === 'telefon yok') return phone || 'telefon yok';
 
@@ -2163,26 +2199,6 @@
         return;
       }
 
-      // 🔧 HTML escape fonksiyonu - emojiler ve özel karakterler için
-      function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-      }
-
-      // 🔧 Attribute için escape fonksiyonu (onclick için JavaScript uyumlu)
-      function escapeAttr(text) {
-        if (!text) return '';
-        return text
-          .replace(/\\/g, '\\\\')
-          .replace(/'/g, "\\'")
-          .replace(/"/g, '\\"')
-          .replace(/</g, '\\u003c')
-          .replace(/>/g, '\\u003e')
-          .replace(/&/g, '\\u0026');
-      }
-
       console.log('🔍 Kullanıcılar render ediliyor...');
       el.innerHTML = list.map((u, index) => {
         // 🔍 DEBUG: Her kullanıcı için detaylı log
@@ -2204,11 +2220,7 @@
         if (u.id === null || u.id === undefined) {
           safeId = '__NULL_SESSION__';
         } else {
-          safeId = String(u.id)
-            .replace(/&/g, '&amp;')
-            .replace(/"/g, '&quot;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
+          safeId = escapeHtml(u.id);
         }
         const safeName = escapeHtml(sessions[u.id]?.info?.customName || 'isimsiz');
         const safePhone = escapeHtml(formatPhoneNumber(sessions[u.id]?.info?.phoneNumber || 'telefon yok'));
@@ -2372,7 +2384,7 @@
       const userName = sessions[id]?.info?.customName || 'isimsiz';
       const userPhone = sessions[id]?.info?.phoneNumber || '';
       const formattedPhone = formatPhoneNumber(userPhone);
-      document.getElementById('chatTitle').innerHTML = `🐰 ${userName}${formattedPhone ? '<br><span style="font-size:0.8rem;color:#64748b;cursor:text;user-select:text">' + formattedPhone + '</span>' : ''}`;
+      document.getElementById('chatTitle').innerHTML = `🐰 ${escapeHtml(userName)}${formattedPhone ? '<br><span style="font-size:0.8rem;color:#64748b;cursor:text;user-select:text">' + escapeHtml(formattedPhone) + '</span>' : ''}`;
       const msgs = Object.entries(data.messages || {}).map(([k, v]) => ({ ...v, id: k })).sort((a, b) => a.timestamp - b.timestamp);
       console.log('🔍 İşlenmiş mesajlar:', msgs);
       console.log('🔍 Mesaj sayısı:', msgs.length);
@@ -2414,40 +2426,35 @@
         const senderLabel = replyTo.sender === 'user' ? '👤 Kullanıcı' : '🤖 Bot';
         const shortMsg = (replyTo.message || '').slice(0, 50) + ((replyTo.message || '').length > 50 ? '...' : '');
         return `
-          <div class="reply-reference" onclick="scrollToMessage('${replyTo.messageId}')">
+          <div class="reply-reference" onclick="scrollToMessage(${jsArg(replyTo.messageId)})">
             <div class="ref-sender">${senderLabel}</div>
-            <div class="ref-text">${shortMsg}</div>
+            <div class="ref-text">${escapeHtml(shortMsg)}</div>
           </div>
         `;
       }
 
-      // URL'leri tıklanabilir linklere dönüştür
-      function linkify(text) {
-        const urlPattern = /(https?:\/\/[^\s<]+)/g;
-        return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#a5b4fc;text-decoration:underline">$1</a>');
-      }
-
       // Medya render fonksiyonu
       function renderMedia(m) {
-        if (!m.mediaUrl) return '';
+        const mediaUrl = safeMediaUrl(m.mediaUrl);
+        if (!mediaUrl) return '';
         if (m.mediaType === 'image') {
-          return `<div style="margin:6px 0"><img src="${m.mediaUrl}" style="max-width:280px;max-height:300px;border-radius:8px;cursor:pointer" onclick="window.open('${m.mediaUrl}','_blank')" alt="Fotoğraf"></div>`;
+          return `<div style="margin:6px 0"><img src="${escapeHtml(mediaUrl)}" style="max-width:280px;max-height:300px;border-radius:8px;cursor:pointer" onclick="window.open(${jsArg(mediaUrl)},'_blank')" alt="Fotoğraf"></div>`;
         } else if (m.mediaType === 'video') {
-          return `<div style="margin:6px 0"><video src="${m.mediaUrl}" style="max-width:280px;max-height:300px;border-radius:8px" controls></video></div>`;
+          return `<div style="margin:6px 0"><video src="${escapeHtml(mediaUrl)}" style="max-width:280px;max-height:300px;border-radius:8px" controls></video></div>`;
         }
         return '';
       }
 
       // WhatsApp tarzı: messages-inner wrapper ile alta hizalama
       el.innerHTML = `<div class="messages-inner">` + msgs.map(m => `
-    <div class="msg ${m.sender} ${m.learned ? 'learned' : ''}" 
-         data-msg-id="${m.id}" 
-         data-msg-text="${(m.message || '').replace(/"/g, '&quot;').slice(0, 100)}"
-         data-msg-sender="${m.sender}"
-         oncontextmenu="showMsgContextMenu(event, '${m.id}', '${(m.message || '').replace(/'/g, "\\'")}', '${m.sender}')">
+    <div class="msg ${escapeHtml(m.sender)} ${m.learned ? 'learned' : ''}" 
+         data-msg-id="${escapeHtml(m.id)}" 
+         data-msg-text="${escapeHtml((m.message || '').slice(0, 100))}"
+         data-msg-sender="${escapeHtml(m.sender)}"
+         oncontextmenu="showMsgContextMenu(event, ${jsArg(m.id)}, ${jsArg(m.message)}, ${jsArg(m.sender)})">
       ${renderReplyRef(m.replyTo)}
       ${renderMedia(m)}
-      ${m.mediaUrl && m.message && !m.message.startsWith('📷') && !m.message.startsWith('🎥') ? linkify((m.message || '').replace(/\n/g, '<br>')) : (!m.mediaUrl ? linkify((m.message || '').replace(/\n/g, '<br>')) : '')}
+      ${m.mediaUrl && m.message && !m.message.startsWith('📷') && !m.message.startsWith('🎥') ? formatMessageText(m.message) : (!m.mediaUrl ? formatMessageText(m.message) : '')}
       <div class="time">${formatTimestamp(m.timestamp)}${m.learned ? ' 🧠' : ''}${m.fromAdmin ? ' 👤' : ''}</div>
     </div>
   `).join('') + `</div>`;
@@ -3029,16 +3036,16 @@
         <span style="color:#ef4444;font-weight:bold;font-size:0.9rem">⚠️ BOT CEVAPLAYAMADI</span>
         <span style="font-size:0.7rem;color:#64748b">${new Date(q.timestamp).toLocaleString('tr-TR')}</span>
       </div>
-      <div class="question">❓ "${q.question}"</div>
+      <div class="question">❓ "${escapeHtml(q.question)}"</div>
       <div class="context">
         <div style="font-weight:600;margin-bottom:5px;color:#94a3b8">💬 Önceki konuşma:</div>
-        ${q.conversationHistory || 'Yok'}
+        ${q.conversationHistory ? escapeHtml(q.conversationHistory).replace(/\n/g, '<br>') : 'Yok'}
       </div>
-      <div class="meta">Session: ${q.sessionId.slice(-8)}</div>
+      <div class="meta">Session: ${escapeHtml(String(q.sessionId ?? '').slice(-8))}</div>
       <div class="pending-actions">
-        <button class="btn btn-warning" onclick="event.stopPropagation();takeoverFromPending('${q.sessionId}','${id}')">👤 Devral & Yanıtla</button>
-        <button class="btn btn-danger" onclick="event.stopPropagation();dismissPending('${id}')">❌ Yoksay</button>
-        <button class="btn btn-success" onclick="event.stopPropagation();teachResponse('${q.question}', '${id}')" style="margin-left:auto">🧠 Öğret</button>
+        <button class="btn btn-warning" onclick="event.stopPropagation();takeoverFromPending(${jsArg(q.sessionId)},${jsArg(id)})">👤 Devral & Yanıtla</button>
+        <button class="btn btn-danger" onclick="event.stopPropagation();dismissPending(${jsArg(id)})">❌ Yoksay</button>
+        <button class="btn btn-success" onclick="event.stopPropagation();teachResponse(${jsArg(q.question)}, ${jsArg(id)})" style="margin-left:auto">🧠 Öğret</button>
       </div>
     </div>
   `;
@@ -3124,7 +3131,7 @@
 
       if (!list.length) {
         if (searchTerm.trim() !== '') {
-          el.innerHTML = `<div class="empty"><div class="icon">🔍</div>"${searchTerm}" için sonuç bulunamadı</div>`;
+          el.innerHTML = `<div class="empty"><div class="icon">🔍</div>"${escapeHtml(searchTerm)}" için sonuç bulunamadı</div>`;
         } else {
           el.innerHTML = '<div class="empty"><div class="icon">🧠</div>Henüz öğrenilmiş yanıt yok</div>';
         }
@@ -3147,17 +3154,17 @@
       <div class="responses-list">
         ${responses.map((r, index) => {
         const tagsDisplay = r.contextTags && r.contextTags.length > 0
-          ? `<div style="margin-top:4px;font-size:0.75rem;color:#667eea">🏷️ Etiketler: ${r.contextTags.join(', ')}</div>`
+          ? `<div style="margin-top:4px;font-size:0.75rem;color:#667eea">🏷️ Etiketler: ${escapeHtml(r.contextTags.join(', '))}</div>`
           : '<div style="margin-top:4px;font-size:0.75rem;color:#64748b">🏷️ Etiket yok</div>';
         return `
-          <div class="response-item" style="margin-bottom:8px;padding:8px;background:#0a0a0f;border-radius:6px" id="response-${r.id}">
-            <div class="response">💬 Yanıt ${index + 1}: <span id="response-text-${r.id}">${highlightSearchTerm(r.response, searchTerm)}</span></div>
+          <div class="response-item" style="margin-bottom:8px;padding:8px;background:#0a0a0f;border-radius:6px" id="response-${escapeHtml(r.id)}">
+            <div class="response">💬 Yanıt ${index + 1}: <span id="response-text-${escapeHtml(r.id)}">${highlightSearchTerm(r.response, searchTerm)}</span></div>
             ${tagsDisplay}
-            <div class="meta">Öğrenildi: ${new Date(r.learnedAt).toLocaleString('tr-TR')} | Session: ${r.learnedFrom.slice(-8)}</div>
+            <div class="meta">Öğrenildi: ${new Date(r.learnedAt).toLocaleString('tr-TR')} | Session: ${escapeHtml(String(r.learnedFrom ?? '').slice(-8))}</div>
             <div class="learned-actions" style="margin-top:5px">
-              <button class="btn btn-warning" style="padding:4px 8px;font-size:0.7rem" onclick="editLearnedResponse('${r.id}')">✏️ Düzenle</button>
-              <button class="btn" style="padding:4px 8px;font-size:0.7rem;background:#667eea;color:#fff" onclick="editContextTags('${r.id}', '${(r.contextTags || []).join(', ')}')">🏷️ Etiket</button>
-              <button class="btn btn-danger" style="padding:4px 8px;font-size:0.7rem" onclick="deleteLearned('${r.id}')">🗑️ Sil</button>
+              <button class="btn btn-warning" style="padding:4px 8px;font-size:0.7rem" onclick="editLearnedResponse(${jsArg(r.id)})">✏️ Düzenle</button>
+              <button class="btn" style="padding:4px 8px;font-size:0.7rem;background:#667eea;color:#fff" onclick="editContextTags(${jsArg(r.id)}, ${jsArg((r.contextTags || []).join(', '))})">🏷️ Etiket</button>
+              <button class="btn btn-danger" style="padding:4px 8px;font-size:0.7rem" onclick="deleteLearned(${jsArg(r.id)})">🗑️ Sil</button>
             </div>
           </div>
         `}).join('')}
@@ -3173,9 +3180,12 @@
     }
 
     function highlightSearchTerm(text, searchTerm) {
-      if (!searchTerm?.trim()) return text;
-      return text.replace(new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
-        '<mark style="background:#667eea;color:#fff;padding:2px 4px;border-radius:3px">$&</mark>');
+      if (!searchTerm?.trim()) return escapeHtml(text);
+      // Metni parcala: tek indisler eslesmedir, her parca ayri kacirilir.
+      const pattern = new RegExp('(' + searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+      return String(text ?? '').split(pattern).map((part, index) => index % 2
+        ? `<mark style="background:#667eea;color:#fff;padding:2px 4px;border-radius:3px">${escapeHtml(part)}</mark>`
+        : escapeHtml(part)).join('');
     }
 
     function deleteLearned(id) {
@@ -3649,14 +3659,14 @@
         return `
           <div class="schedule-item" style="border-left-color:${borderColor}">
             <label class="schedule-toggle">
-              <input type="checkbox" ${enabledChecked} onchange="toggleScheduledMessage('${id}', this.checked)">
+              <input type="checkbox" ${enabledChecked} onchange="toggleScheduledMessage(${jsArg(id)}, this.checked)">
               <span class="slider"></span>
             </label>
-            <div class="schedule-time">🕐 ${rule.startTime || '00:00'} - ${rule.endTime || '23:59'}</div>
-            <div class="schedule-msg">💬 ${msgPreview || 'Mesaj yok'}</div>
+            <div class="schedule-time">🕐 ${escapeHtml(rule.startTime || '00:00')} - ${escapeHtml(rule.endTime || '23:59')}</div>
+            <div class="schedule-msg">💬 ${escapeHtml(msgPreview || 'Mesaj yok')}</div>
             <div class="schedule-actions">
-              <button class="edit-btn" onclick="editScheduledMessage('${id}')">✏️ Düzenle</button>
-              <button class="delete-btn" onclick="deleteScheduledMessage('${id}')">🗑️ Sil</button>
+              <button class="edit-btn" onclick="editScheduledMessage(${jsArg(id)})">✏️ Düzenle</button>
+              <button class="delete-btn" onclick="deleteScheduledMessage(${jsArg(id)})">🗑️ Sil</button>
             </div>
           </div>
         `;
@@ -3849,11 +3859,11 @@
         return `
           <div class="schedule-item" style="border-left-color:#f59e0b">
             <div style="flex:1;min-width:0">
-              <div style="font-size:0.8rem;color:#f59e0b;font-weight:600;margin-bottom:4px">❓ ${qPreview}</div>
-              <div style="font-size:0.8rem;color:#94a3b8">💬 ${rPreview}</div>
+              <div style="font-size:0.8rem;color:#f59e0b;font-weight:600;margin-bottom:4px">❓ ${escapeHtml(qPreview)}</div>
+              <div style="font-size:0.8rem;color:#94a3b8">💬 ${escapeHtml(rPreview)}</div>
             </div>
             <div class="schedule-actions">
-              <button class="delete-btn" onclick="deleteTimedResponse('${id}')">🗑️ Sil</button>
+              <button class="delete-btn" onclick="deleteTimedResponse(${jsArg(id)})">🗑️ Sil</button>
             </div>
           </div>
         `;

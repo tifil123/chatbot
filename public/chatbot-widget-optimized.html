@@ -1498,7 +1498,37 @@
       }
     }
 
-    // URL'leri tıklanabilir linklere dönüştür
+    // ============ GUVENLI CIKTI YARDIMCILARI ============
+    // Ziyaretciden gelen her deger HTML'e yazilmadan once bunlardan gecmelidir.
+
+    /** Metni HTML icerigi veya cift tirnakli attribute icin guvenli hale getirir. */
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[ch]));
+    }
+
+    /** onclick="fn(...)" icindeki bir argumani tirnaklariyla birlikte uretir. */
+    function jsArg(value) {
+      return escapeHtml(JSON.stringify(String(value ?? '')));
+    }
+
+    /** Sadece https adreslerine izin verir, digerleri icin bos doner. */
+    function safeMediaUrl(value) {
+      try {
+        const url = new URL(String(value));
+        return url.protocol === 'https:' ? url.href : '';
+      } catch {
+        return '';
+      }
+    }
+
+    /** Duz metni kacirir, satir sonlarini ve baglantilari sonradan ekler. */
+    function formatMessageText(text) {
+      return linkify(escapeHtml(text).replace(/\n/g, '<br>'));
+    }
+
+    // URL'leri tiklanabilir linklere donustur (kacirilmis metin bekler)
     function linkify(text) {
       const urlPattern = /(https?:\/\/[^\s<]+)/g;
       return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#667eea;text-decoration:underline">$1</a>');
@@ -1513,7 +1543,7 @@
       div.setAttribute('data-msg-sender', isUser ? 'user' : 'bot');
 
       const time = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-      const formattedText = linkify((text || '').replace(/\n/g, '<br>'));
+      const formattedText = formatMessageText(text);
 
       // Reply reference oluştur
       let replyRefHtml = '';
@@ -1521,20 +1551,21 @@
         const senderLabel = replyTo.sender === 'user' ? '👤 Sen' : '🤖 Bot';
         const shortMsg = (replyTo.message || '').slice(0, 40) + ((replyTo.message || '').length > 40 ? '...' : '');
         replyRefHtml = `
-          <div class="widget-reply-reference" onclick="scrollToWidgetMessage('${replyTo.messageId}')">
+          <div class="widget-reply-reference" onclick="scrollToWidgetMessage(${jsArg(replyTo.messageId)})">
             <div class="ref-sender">${senderLabel}</div>
-            <div class="ref-text">${shortMsg}</div>
+            <div class="ref-text">${escapeHtml(shortMsg)}</div>
           </div>
         `;
       }
 
       // Medya HTML
       let mediaHtml = '';
-      if (mediaUrl) {
+      const safeUrl = safeMediaUrl(mediaUrl);
+      if (safeUrl) {
         if (mediaType === 'image') {
-          mediaHtml = `<div style="margin:4px 0"><img src="${mediaUrl}" style="max-width:200px;max-height:200px;border-radius:8px;cursor:pointer" onclick="window.open('${mediaUrl}','_blank')" alt="Fotoğraf"></div>`;
+          mediaHtml = `<div style="margin:4px 0"><img src="${escapeHtml(safeUrl)}" style="max-width:200px;max-height:200px;border-radius:8px;cursor:pointer" onclick="window.open(${jsArg(safeUrl)},'_blank')" alt="Fotoğraf"></div>`;
         } else if (mediaType === 'video') {
-          mediaHtml = `<div style="margin:4px 0"><video src="${mediaUrl}" style="max-width:200px;max-height:200px;border-radius:8px" controls></video></div>`;
+          mediaHtml = `<div style="margin:4px 0"><video src="${escapeHtml(safeUrl)}" style="max-width:200px;max-height:200px;border-radius:8px" controls></video></div>`;
         }
       }
 

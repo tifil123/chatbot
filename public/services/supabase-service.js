@@ -452,9 +452,8 @@ class SupabaseService {
     }
 
     isAdminUser(user = this.currentUser) {
-        const appRole = user?.app_metadata?.role;
-        const userRole = user?.user_metadata?.role;
-        return appRole === 'admin' || userRole === 'admin';
+        // user_metadata kullanici tarafindan degistirilebilir, rol icin asla kullanilmaz.
+        return user?.app_metadata?.role === 'admin';
     }
 
     async signOut() {

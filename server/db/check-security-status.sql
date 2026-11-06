@@ -30,19 +30,31 @@ WHERE n.nspname = 'public'
 ORDER BY c.relname;
 
 SELECT
+  schemaname AS sema,
   tablename AS tablo,
   policyname AS politika,
   cmd AS islem,
-  roles AS roller
+  roles AS roller,
+  qual AS kural,
+  with_check AS yazma_kurali
 FROM pg_policies
-WHERE schemaname = 'public'
-  AND tablename IN (
-    'sessions',
-    'messages',
-    'pending_questions',
-    'learned_responses',
-    'scheduled_messages',
-    'timed_responses_config',
-    'timed_responses'
-  )
-ORDER BY tablename, policyname;
+WHERE schemaname IN ('public', 'storage')
+ORDER BY schemaname, tablename, policyname;
+
+-- Bu sorgu satir dondururse guvenlik acigi vardir:
+-- user_metadata kullanici tarafindan degistirilebilir, yetki kontrolunde kullanilmamalidir.
+SELECT p.schemaname AS sema, p.tablename AS tablo, p.policyname AS politika
+FROM pg_policies p
+WHERE p.schemaname IN ('public', 'storage')
+  AND concat(p.qual, ' ', p.with_check) LIKE '%user_metadata%'
+UNION ALL
+SELECT 'public', '(fonksiyon)', f.proname::text
+FROM pg_proc f
+JOIN pg_namespace n ON n.oid = f.pronamespace
+WHERE n.nspname = 'public'
+  AND f.prosrc LIKE '%user_metadata%';
+
+-- chat-media kisitlari: boyut ve tip sinirlari dolu olmali.
+SELECT id, public, file_size_limit, allowed_mime_types
+FROM storage.buckets
+WHERE id = 'chat-media';

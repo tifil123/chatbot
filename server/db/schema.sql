@@ -157,16 +157,15 @@ DROP POLICY IF EXISTS "Visitors can read timed responses config" ON timed_respon
 DROP POLICY IF EXISTS "Admins can manage timed responses" ON timed_responses;
 DROP POLICY IF EXISTS "Visitors can read timed responses" ON timed_responses;
 
--- Supabase Auth JWT icinde app_metadata.role veya user_metadata.role "admin" ise admin kabul edilir.
+-- Supabase Auth JWT icinde sadece app_metadata.role "admin" ise admin kabul edilir.
+-- user_metadata kullanici tarafindan degistirilebilir, burada asla kullanilmaz.
 CREATE OR REPLACE FUNCTION public.is_chatbot_admin()
 RETURNS BOOLEAN
 LANGUAGE SQL
 STABLE
+SET search_path = ''
 AS $$
-  SELECT COALESCE(
-    auth.jwt() -> 'app_metadata' ->> 'role',
-    auth.jwt() -> 'user_metadata' ->> 'role'
-  ) = 'admin';
+  SELECT COALESCE(auth.jwt() -> 'app_metadata' ->> 'role' = 'admin', FALSE);
 $$;
 
 -- Admin: tum tablolarda tam yetki.
