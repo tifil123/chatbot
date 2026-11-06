@@ -95,7 +95,7 @@ Kontrol Merkezi, projenin yedekleme, deploy, sunucu yönetimi, Git işlemleri ve
 
 | Buton | Açıklama | Komut |
 |---|---|---|
-| 💾 Yedekle | Değişiklikleri GitHub'a yükle | `git add . && git commit -m "Yedekleme - {tarih}" && git push origin main` |
+| 💾 Yedekle | Değişiklikleri GitHub'a yükle | Sadece `main` dalında: değişiklik varsa `Yedekleme - {tarih}` commit, gönderilmemiş commit varsa push |
 | 🔄 Güncelle | GitHub'dan güncel dosyaları çek | `git pull origin main` |
 | ⚙️ Yedekleme Sistemi | Otomatik yedekleme sistemini çalıştır | `backup-tools/yedekleme_sistemi.bat` (yeni pencerede) |
 

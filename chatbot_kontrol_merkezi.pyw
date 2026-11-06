@@ -18,11 +18,11 @@ SERVER_PORT = 8787
 DEPLOY_WORKFLOW = 'deploy.yml'
 
 
-def deploy_to_pages(run, log, commit_message, wait=time.sleep):
-    """Degisiklikleri yayinlar ve GitHub Pages sonucunu bekler.
+def commit_and_push(run, log, commit_message):
+    """Degisiklik varsa commit, gonderilmemis commit varsa push yapar.
 
-    run(args) -> (cikis_kodu, cikti). Basarida True doner. Commit edilecek bir
-    sey yoksa push yine yapilir; basarisiz son deploy yeniden baslatilir.
+    run(args) -> (cikis_kodu, cikti). Basarida (HEAD, gonderilen_sayi), aksi
+    halde None doner.
     """
     def git(*args):
         return run(['git', *args])
@@ -31,11 +31,11 @@ def deploy_to_pages(run, log, commit_message, wait=time.sleep):
         if output.strip():
             log(output.strip())
         log(f"❌ {message}")
-        return False
+        return None
 
     branch = git('branch', '--show-current')[1].strip()
     if branch != 'main':
-        return fail(f"Deploy sadece main dalindan yapilir (su an: {branch or 'bilinmiyor'})")
+        return fail(f"Bu islem sadece main dalindan yapilir (su an: {branch or 'bilinmiyor'})")
 
     code, output = git('add', '.')
     if code != 0:
@@ -65,6 +65,26 @@ def deploy_to_pages(run, log, commit_message, wait=time.sleep):
         if code != 0:
             return fail("Push basarisiz", output)
 
+    return head, int(ahead)
+
+
+def deploy_to_pages(run, log, commit_message, wait=time.sleep):
+    """Degisiklikleri yayinlar ve GitHub Pages sonucunu bekler.
+
+    Basarida True doner. Commit edilecek bir sey yoksa push yine yapilir;
+    basarisiz son deploy yeniden baslatilir.
+    """
+    def fail(message, output=''):
+        if output.strip():
+            log(output.strip())
+        log(f"❌ {message}")
+        return False
+
+    pushed = commit_and_push(run, log, commit_message)
+    if pushed is None:
+        return False
+    head, ahead = pushed
+
     def latest_run():
         """Bu commit icin son deploy calismasi: (id, status, conclusion) veya None."""
         code, output = run(['gh', 'run', 'list', '--workflow', DEPLOY_WORKFLOW,
@@ -77,19 +97,19 @@ def deploy_to_pages(run, log, commit_message, wait=time.sleep):
     deployment = None
     for _ in range(12):
         deployment = latest_run()
-        if deployment or ahead == '0':
+        if deployment or ahead == 0:
             break
         wait(5)
 
     if deployment is None:
-        if ahead != '0':
+        if ahead:
             log("⚠️ Push tamam, ancak deploy sonucu okunamadi. GitHub Actions sekmesini kontrol edin.")
             return True
         return fail("Bu commit icin deploy bulunamadi. GitHub Actions sekmesini kontrol edin.")
 
     run_id, status, conclusion = deployment
     if status == 'completed' and conclusion == 'success':
-        if ahead == '0':
+        if not ahead:
             log("✅ Site zaten guncel, yayinlanacak bir sey yok")
             return True
     elif status == 'completed':
@@ -638,11 +658,18 @@ class CommandCenter:
     
     # Yedekleme komutları
     def backup_push(self):
-        self.clear_output()
         # Python ile tutarlı tarih formatı oluştur
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
         commit_message = f"Yedekleme - {timestamp}"
-        self.run_command(f'git add . && git commit -m "{commit_message}" && git push origin main')
+
+        def backup(run, log):
+            result = commit_and_push(run, log, commit_message)
+            if result is None:
+                return False
+            log("✅ Yedek GitHub'da" if result[1] else "✅ Yedek zaten güncel")
+            return True
+
+        self.run_git_flow(backup, "💾 Yedekleniyor...", "Yedekleme")
     
     def backup_pull(self):
         self.clear_output()
@@ -658,7 +685,8 @@ class CommandCenter:
         self.run_command(f'"{bat_path}"', show_window=True)
     
     # Supabase komutları
-    def github_pages_deploy(self):
+    def run_git_flow(self, flow, intro, name):
+        """flow(run, log) adimlarini arka planda calistirir, sonucu durum satirina yazar."""
         with self.process_lock:
             if self.is_running:
                 self.log("⚠️ Başka bir komut çalışıyor, lütfen bekleyin...")
@@ -667,10 +695,8 @@ class CommandCenter:
             self.is_running = True
 
         self.clear_output()
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-        commit_message = f"Deploy - {timestamp}"
-        self.log("🚀 GitHub Pages'e deploy ediliyor...")
-        self.status_label.config(text="⏳ Deploy çalışıyor...")
+        self.log(intro)
+        self.status_label.config(text=f"⏳ {name} çalışıyor...")
 
         def log(message):
             self.root.after(0, lambda: self.log(message))
@@ -693,7 +719,7 @@ class CommandCenter:
 
         def worker():
             try:
-                ok = deploy_to_pages(step, log, commit_message)
+                ok = flow(step, log)
             except FileNotFoundError as e:
                 ok = False
                 log(f"❌ Komut bulunamadı: {e.filename}. Git ve GitHub CLI (gh) kurulu olmalı.")
@@ -704,10 +730,19 @@ class CommandCenter:
                 with self.process_lock:
                     self.running_process = None
                     self.is_running = False
-            text = "✅ Deploy tamamlandı" if ok else "❌ Deploy başarısız"
+            text = f"✅ {name} tamamlandı" if ok else f"❌ {name} başarısız"
             self.root.after(0, lambda: self.status_label.config(text=text))
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def github_pages_deploy(self):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        commit_message = f"Deploy - {timestamp}"
+        self.run_git_flow(
+            lambda run, log: deploy_to_pages(run, log, commit_message),
+            "🚀 GitHub Pages'e deploy ediliyor...",
+            "Deploy"
+        )
     
     def supabase_dashboard(self):
         webbrowser.open('https://supabase.com/dashboard/project/ydhlveimkpkncyizdjjy')
