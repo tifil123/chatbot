@@ -1627,7 +1627,18 @@
 
     function handleWidgetFileSelect(event) {
       const file = event.target.files[0];
-      if (!file) return;
+      if (file) attachWidgetMedia(file);
+    }
+
+    /** Dosya seçici ve yapıştırma için ortak ekleme adımı. */
+    function attachWidgetMedia(file) {
+      try {
+        firebaseService.validateMediaFile(file);
+      } catch (err) {
+        document.getElementById('widgetFileInput').value = '';
+        alert(err.message);
+        return;
+      }
       widgetPendingMedia = file;
       const preview = document.getElementById('widgetMediaPreview');
       const img = document.getElementById('widgetMediaPreviewImg');
@@ -1956,6 +1967,14 @@
     // Enter ile gönder
     document.getElementById('widgetInput').addEventListener('keypress', function (e) {
       if (e.key === 'Enter') sendWidgetMessage();
+    });
+
+    // Panodan görsel yapıştırma (Ctrl+V / Cmd+V)
+    document.getElementById('widgetInput').addEventListener('paste', function (e) {
+      const image = firebaseService.imageFromClipboard(e.clipboardData);
+      if (!image) return;
+      e.preventDefault();
+      attachWidgetMedia(image);
     });
 
     // ESC tuşuyla widget'ı kapat

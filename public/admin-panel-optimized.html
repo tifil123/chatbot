@@ -2540,7 +2540,18 @@
 
     function handleAdminFileSelect(event) {
       const file = event.target.files[0];
-      if (!file) return;
+      if (file) attachAdminMedia(file);
+    }
+
+    /** Dosya seçici ve yapıştırma için ortak ekleme adımı. */
+    function attachAdminMedia(file) {
+      try {
+        firebaseService.validateMediaFile(file);
+      } catch (err) {
+        document.getElementById('adminFileInput').value = '';
+        toast('❌ ' + err.message, 'error');
+        return;
+      }
       pendingMediaFile = file;
       const preview = document.getElementById('mediaPreview');
       const img = document.getElementById('mediaPreviewImg');
@@ -3386,6 +3397,14 @@
         e.preventDefault();
         sendManualReply();
       }
+    });
+
+    // Panodan görsel yapıştırma (Ctrl+V / Cmd+V)
+    document.getElementById('replyInput').addEventListener('paste', function (e) {
+      const image = firebaseService.imageFromClipboard(e.clipboardData);
+      if (!image) return;
+      e.preventDefault();
+      attachAdminMedia(image);
     });
 
     // ESC tuşu ile sohbetten çıkış

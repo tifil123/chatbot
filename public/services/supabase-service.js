@@ -1200,28 +1200,39 @@ class SupabaseService {
      * @param {File} file - Yüklenecek dosya
      * @returns {Promise<{url: string, type: string}>} - Public URL ve medya tipi
      */
+    /** Dosya tipi veya boyutu uygun değilse kullanıcıya gösterilecek hatayı fırlatır. */
+    validateMediaFile(file) {
+        if (file.size > MAX_MEDIA_SIZE) {
+            throw new Error('Dosya boyutu 10MB\'dan büyük olamaz');
+        }
+        if (!MEDIA_EXTENSIONS[file.type]) {
+            throw new Error('Desteklenmeyen dosya formatı. Desteklenen: JPG, PNG, GIF, WEBP, MP4, WEBM');
+        }
+    }
+
+    /**
+     * Panodaki görseli döndürür, yoksa null.
+     * Panoda metin de varsa (Excel, Word) normal metin yapıştırma korunur.
+     */
+    imageFromClipboard(clipboardData) {
+        if (!clipboardData || clipboardData.getData('text/plain').trim()) return null;
+        for (const item of clipboardData.items) {
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                return item.getAsFile();
+            }
+        }
+        return null;
+    }
+
     async uploadFile(file) {
         if (!this.client) throw new Error('Supabase bağlantısı yok');
 
-        // Boyut kontrolü (max 10MB)
-        const maxSize = 10 * 1024 * 1024;
-        if (file.size > maxSize) {
-            throw new Error('Dosya boyutu 10MB\'dan büyük olamaz');
-        }
+        this.validateMediaFile(file);
 
-        // Tip kontrolü
-        const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        const videoTypes = ['video/mp4', 'video/webm'];
-        const allowedTypes = [...imageTypes, ...videoTypes];
+        const mediaType = file.type.startsWith('image/') ? 'image' : 'video';
 
-        if (!allowedTypes.includes(file.type)) {
-            throw new Error('Desteklenmeyen dosya formatı. Desteklenen: JPG, PNG, GIF, WEBP, MP4, WEBM');
-        }
-
-        const mediaType = imageTypes.includes(file.type) ? 'image' : 'video';
-
-        // Benzersiz dosya adı oluştur
-        const ext = file.name.split('.').pop();
+        // Benzersiz dosya adı oluştur (panodan gelen dosyaların adı güvenilir değil)
+        const ext = MEDIA_EXTENSIONS[file.type];
         const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
         const filePath = `chat/${fileName}`;
 
@@ -1253,6 +1264,17 @@ class SupabaseService {
         };
     }
 }
+
+// Yüklenebilen medya tipleri ve boyut sınırı (chat-media kovasıyla aynı)
+const MAX_MEDIA_SIZE = 10 * 1024 * 1024;
+const MEDIA_EXTENSIONS = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'video/mp4': 'mp4',
+    'video/webm': 'webm'
+};
 
 // Singleton pattern ile export et
 const supabaseService = new SupabaseService();
