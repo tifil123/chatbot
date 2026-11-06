@@ -151,6 +151,8 @@ Admin kontrolü `is_chatbot_admin()` SQL fonksiyonu ile yapılır:
 SELECT COALESCE(auth.jwt() -> 'app_metadata' ->> 'role' = 'admin', FALSE);
 ```
 
+Admin hesabının `app_metadata` alanında `role: admin` bulunmalıdır. Bu alan yalnızca sunucu tarafından değiştirilebilir; değişiklikten sonra yeni token için çıkış yapıp tekrar giriş yapın.
+
 ### Politika Özeti
 
 | Tablo | Rol | SELECT | INSERT | UPDATE | DELETE |
@@ -177,6 +179,10 @@ SELECT COALESCE(auth.jwt() -> 'app_metadata' ->> 'role' = 'admin', FALSE);
 3. **Kısıtlı mesaj oluşturma**: `sender = 'user'` veya `sender = 'bot'`, kendi session'ına ait, `from_admin = FALSE`, `auto_reply = FALSE`, `learned = FALSE`, `scheduled = FALSE`, `1 ≤ length(message) ≤ 1000`.
 4. **Kısıtlı soru oluşturma**: Kendi session'ına ait, `status = 'pending'`, `1 ≤ length(question) ≤ 1000`.
 5. **Aktifler**: `enabled = TRUE` olan kayıtlar.
+
+### Storage (`chat-media`)
+
+Kova herkese açık okunur. Yükleme için Supabase oturumu gerekir (widget'ın anonim oturumu da sayılır) ve dosyalar `chat/` klasöründe olmalıdır. Kova 10 MB sınırını ve izin verilen tipleri (JPEG, PNG, GIF, WEBP, MP4, WEBM) sunucu tarafında uygular.
 
 ### Güvenlik Mimarisi Şeması
 
@@ -230,18 +236,21 @@ Tüm scriptler `server/db/` dizinindedir.
 | `secure-rls-policies.sql` | `is_chatbot_admin()` fonksiyonlu RLS politikaları | `schema.sql`'den bağımsız uygulamak gerekirse |
 | `secure-rls-policies-simple.sql` | SQL fonksiyon blokları olmayan basitleştirilmiş RLS | Supabase SQL Editor'de doğrudan yapıştırma kolaylığı için |
 | `secure-widget-ownership.sql` | `owner_user_id` kolonu + ziyaretçi sahiplik politikaları | İlk RLS kurulumundan sonra |
-| `check-security-status.sql` | Güvenlik durumu kontrolü (salt okunur) | Politikaların doğru uygulandığını doğrulamak için |
+| `secure-storage-policies.sql` | `chat-media` yükleme politikası, dosya tipi ve boyut sınırları | RLS kurulumundan sonra; tekrar çalıştırılabilir |
+| `check-security-status.sql` | Güvenlik durumu kontrolü (salt okunur) | Politika kurallarını, `user_metadata` bağımlılıklarını ve `chat-media` sınırlarını doğrulamak için |
 
 ### Çalıştırma Sırası (Temiz Kurulum)
 
 1. `schema.sql` — Tabloları, indeksleri, realtime yayınları ve tüm RLS politikalarını oluşturur.
-2. Doğrulama: `check-security-status.sql` çalıştırın.
+2. `secure-storage-policies.sql` — `chat-media` kovasını kilitler.
+3. Doğrulama: `check-security-status.sql` çalıştırın.
 
 ### Çalıştırma Sırası (Mevcut DB'ye RLS Ekleme)
 
 1. `secure-rls-policies-simple.sql` veya `secure-rls-policies.sql`
 2. `secure-widget-ownership.sql`
-3. Doğrulama: `check-security-status.sql`
+3. `secure-storage-policies.sql`
+4. Doğrulama: `check-security-status.sql`
 
 ---
 
